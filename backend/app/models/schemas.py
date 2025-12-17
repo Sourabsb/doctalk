@@ -1,0 +1,91 @@
+from datetime import datetime
+from typing import List, Optional
+from pydantic import BaseModel, EmailStr, Field, field_validator, ConfigDict
+
+class UserProfile(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: int
+    email: EmailStr
+    name: Optional[str]
+    created_at: datetime
+
+class SignUpRequest(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=8)
+    name: Optional[str] = None
+
+class SignInRequest(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=8)
+
+class AuthResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: UserProfile
+
+class UpdateProfileRequest(BaseModel):
+    name: Optional[str] = Field(default=None, max_length=120)
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str = Field(min_length=8)
+    new_password: str = Field(min_length=8)
+
+class DeleteAccountRequest(BaseModel):
+    password: str = Field(min_length=8)
+
+class ChatRequest(BaseModel):
+    message: str
+    conversation_id: int
+
+class ResponseVariant(BaseModel):
+    id: int
+    version_index: int
+    content: str
+    sources: List[str]
+    is_active: bool
+    created_at: datetime
+    prompt_content: Optional[str] = None
+
+class ChatResponse(BaseModel):
+    response: str
+    sources: List[str]
+    user_message: Optional['ChatMessageResponse'] = None
+    assistant_message: Optional['ChatMessageResponse'] = None
+    response_versions: Optional[List[ResponseVariant]] = None
+
+class UploadResponse(BaseModel):
+    message: str
+    conversation_id: int
+    processed_files: List[str]
+
+class DownloadRequest(BaseModel):
+    conversation_id: int
+    format: str = "txt"
+
+class ConversationSummary(BaseModel):
+    id: int
+    title: str
+    created_at: datetime
+    updated_at: datetime
+    last_message: Optional[str]
+
+class ChatMessageResponse(BaseModel):
+    id: int
+    role: str
+    content: str
+    sources: List[str]
+    created_at: datetime
+    is_edited: Optional[int] = 0
+    reply_to_message_id: Optional[int] = None
+    version_index: Optional[int] = 1
+    is_archived: Optional[bool] = False
+    response_versions: Optional[List[ResponseVariant]] = None
+
+class ConversationDetailResponse(BaseModel):
+    conversation: ConversationSummary
+    messages: List[ChatMessageResponse]
+    documents: List[str]
+
+
+ChatResponse.model_rebuild()
