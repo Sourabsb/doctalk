@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useMemo } from 'react'
+import { verifyToken } from '../utils/api'
 
 const AuthContext = createContext({})
 
@@ -14,15 +15,41 @@ const readUser = () => {
   try {
     return JSON.parse(stored)
   } catch (error) {
-    console.warn('Invalid user data in storage, resetting.', error)
     localStorage.removeItem('docTalkUser')
     return null
   }
 }
 
+const isNewBrowserSession = () => {
+  if (typeof window === 'undefined') return true
+  return !sessionStorage.getItem('docTalkSessionActive')
+}
+
+const markSessionActive = () => {
+  if (typeof window !== 'undefined') {
+    sessionStorage.setItem('docTalkSessionActive', 'true')
+  }
+}
+
 export const AuthProvider = ({ children }) => {
-  const [token, setToken] = useState(readToken)
-  const [user, setUser] = useState(readUser)
+  const [token, setToken] = useState(() => {
+    if (isNewBrowserSession()) {
+      localStorage.removeItem('docTalkToken')
+      localStorage.removeItem('docTalkUser')
+      return null
+    }
+    return readToken()
+  })
+  const [user, setUser] = useState(() => {
+    if (isNewBrowserSession()) return null
+    return readUser()
+  })
+  const [isVerifying, setIsVerifying] = useState(false)
+  const [isValidToken, setIsValidToken] = useState(false)
+
+  useEffect(() => {
+    markSessionActive()
+  }, [])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -45,11 +72,13 @@ export const AuthProvider = ({ children }) => {
   const login = (authPayload) => {
     setToken(authPayload.access_token)
     setUser(authPayload.user)
+    setIsValidToken(true)
   }
 
   const logout = () => {
     setToken(null)
     setUser(null)
+    setIsValidToken(false)
     // Clear any active session data
     if (typeof window !== 'undefined') {
       localStorage.removeItem('activeConversationId')
@@ -66,8 +95,9 @@ export const AuthProvider = ({ children }) => {
     login,
     logout,
     updateUser,
-    isAuthenticated: Boolean(token)
-  }), [token, user])
+    isAuthenticated: Boolean(token) && isValidToken,
+    isVerifying
+  }), [token, user, isValidToken, isVerifying])
 
   return (
     <AuthContext.Provider value={value}>

@@ -38,6 +38,7 @@ async def add_documents_to_conversation(
         
         all_text_data = {}
         processed_files = []
+        file_contents = {}  # Store extracted text for each file
         error_msgs = []
         
         for file in files:
@@ -56,6 +57,8 @@ async def add_documents_to_conversation(
                     
                 all_text_data.update(text_data)
                 processed_files.append(file.filename)
+                # Store the combined text content for this file
+                file_contents[file.filename] = "\n\n".join(text_data.values())
                 
             except Exception as file_error:
                 error_msg = f"Error processing {file.filename}: {str(file_error)}"
@@ -75,7 +78,11 @@ async def add_documents_to_conversation(
             unique_files = list(dict.fromkeys(processed_files))
             document_map = {}
             for filename in unique_files:
-                document = Document(conversation_id=conversation.id, filename=filename)
+                document = Document(
+                    conversation_id=conversation.id, 
+                    filename=filename,
+                    content=file_contents.get(filename, "")  # Store the extracted text
+                )
                 db.add(document)
                 db.flush()
                 document_map[filename] = document

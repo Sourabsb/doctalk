@@ -47,9 +47,14 @@ class ResponseVariant(BaseModel):
     created_at: datetime
     prompt_content: Optional[str] = None
 
+class SourceWithChunk(BaseModel):
+    source: str
+    chunk: str
+
 class ChatResponse(BaseModel):
     response: str
     sources: List[str]
+    source_chunks: Optional[List[SourceWithChunk]] = None
     user_message: Optional['ChatMessageResponse'] = None
     assistant_message: Optional['ChatMessageResponse'] = None
     response_versions: Optional[List[ResponseVariant]] = None
@@ -82,10 +87,21 @@ class ChatMessageResponse(BaseModel):
     is_archived: Optional[bool] = False
     response_versions: Optional[List[ResponseVariant]] = None
 
+class DocumentResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: int
+    filename: str
+    content: Optional[str] = None
+    uploaded_at: Optional[datetime] = None
+    doc_type: Optional[str] = 'file'
+    is_active: Optional[bool] = True
+    has_embeddings: Optional[bool] = False
+
 class ConversationDetailResponse(BaseModel):
     conversation: ConversationSummary
     messages: List[ChatMessageResponse]
-    documents: List[str]
+    documents: List[DocumentResponse]
 
 
 ChatResponse.model_rebuild()

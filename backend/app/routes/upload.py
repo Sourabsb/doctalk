@@ -21,11 +21,13 @@ async def upload_files(
     current_user = Depends(get_current_user)
 ):
     try:
+        print(f"Upload request received: {len(files)} files, title: {title}")
         processor = DocumentProcessor()
         embedding_processor = EmbeddingProcessor()
         
         all_text_data = {}
         processed_files = []
+        file_contents = {}  # Store extracted text for each file
         error_msgs = []
         
         for file in files:
@@ -44,6 +46,8 @@ async def upload_files(
                     
                 all_text_data.update(text_data)
                 processed_files.append(file.filename)
+                # Store the combined text content for this file
+                file_contents[file.filename] = "\n\n".join(text_data.values())
                 
             except Exception as file_error:
                 error_msg = f"Error processing {file.filename}: {str(file_error)}"
@@ -71,7 +75,11 @@ async def upload_files(
             unique_files = list(dict.fromkeys(processed_files))
             document_map = {}
             for filename in unique_files:
-                document = Document(conversation_id=conversation.id, filename=filename)
+                document = Document(
+                    conversation_id=conversation.id, 
+                    filename=filename,
+                    content=file_contents.get(filename, "")  # Store the extracted text
+                )
                 db.add(document)
                 db.flush()
                 document_map[filename] = document
@@ -104,5 +112,8 @@ async def upload_files(
         raise
     except Exception as e:
         error_msg = f"Upload error: {str(e)}"
+        print(f"ERROR in upload: {error_msg}")
+        import traceback
+        traceback.print_exc()
         db.rollback()
         raise HTTPException(status_code=500, detail=error_msg)

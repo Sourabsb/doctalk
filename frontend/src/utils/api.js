@@ -14,6 +14,23 @@ api.interceptors.request.use((config) => {
   return config
 })
 
+// Handle 401 errors (token expired) - automatically log out
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      // Token expired or invalid - clear auth data and redirect to sign in
+      localStorage.removeItem('docTalkToken')
+      localStorage.removeItem('docTalkUser')
+      // Only redirect if we're not already on auth pages
+      if (!window.location.pathname.includes('/signin') && !window.location.pathname.includes('/signup')) {
+        window.location.href = '/signin?expired=true'
+      }
+    }
+    return Promise.reject(error)
+  }
+)
+
 export const signup = async ({ name, email, password }) => {
   const response = await api.post('/auth/signup', { name, email, password })
   return response.data
@@ -122,5 +139,34 @@ export const changePassword = async (payload) => {
 
 export const deleteAccount = async (payload) => {
   const response = await api.delete('/auth/account', { data: payload })
+  return response.data
+}
+
+export const verifyToken = async () => {
+  const response = await api.get('/auth/verify-token')
+  return response.data
+}
+
+export const deleteDocument = async (conversationId, documentId) => {
+  await api.delete(`/api/conversations/${conversationId}/documents/${documentId}`)
+}
+
+export const createNote = async (conversationId, title, content) => {
+  const response = await api.post(`/api/conversations/${conversationId}/notes`, { title, content })
+  return response.data
+}
+
+export const updateNote = async (conversationId, noteId, title, content) => {
+  const response = await api.put(`/api/conversations/${conversationId}/notes/${noteId}`, { title, content })
+  return response.data
+}
+
+export const convertNoteToSource = async (conversationId, noteId) => {
+  const response = await api.post(`/api/conversations/${conversationId}/notes/${noteId}/convert`)
+  return response.data
+}
+
+export const toggleDocument = async (conversationId, documentId, isActive) => {
+  const response = await api.patch(`/api/conversations/${conversationId}/documents/${documentId}/toggle`, { is_active: isActive })
   return response.data
 }

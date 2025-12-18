@@ -84,3 +84,42 @@ class DocumentProcessor:
                     text += line.text + " "
         
         return {filename: text}
+    
+    def chunk_text(self, text: str, chunk_size: int = 500, overlap: int = 50) -> List[str]:
+        """Split text into overlapping chunks"""
+        if not text or not text.strip():
+            return []
+        
+        chunks = []
+        start = 0
+        text_length = len(text)
+        
+        while start < text_length:
+            end = start + chunk_size
+            
+            # If this is not the last chunk, try to break at a sentence or word boundary
+            if end < text_length:
+                # Look for sentence ending
+                for i in range(end, max(start, end - 100), -1):
+                    if text[i] in '.!?\n':
+                        end = i + 1
+                        break
+                else:
+                    # If no sentence ending found, look for word boundary
+                    for i in range(end, max(start, end - 50), -1):
+                        if text[i].isspace():
+                            end = i
+                            break
+            
+            chunk = text[start:end].strip()
+            if chunk:
+                chunks.append(chunk)
+            
+            # Move start position, accounting for overlap
+            start = end - overlap if end < text_length else text_length
+            
+            # Prevent infinite loop
+            if start <= end - chunk_size:
+                start = end
+        
+        return chunks

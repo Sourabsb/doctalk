@@ -39,6 +39,9 @@ class Document(Base):
     id = Column(Integer, primary_key=True)
     conversation_id = Column(Integer, ForeignKey("conversations.id"), nullable=False, index=True)
     filename = Column(String, nullable=False)
+    content = Column(Text, nullable=True)
+    doc_type = Column(String, default="file")  # 'file' or 'note'
+    is_active = Column(Boolean, default=True)  # For enabling/disabling in queries
     uploaded_at = Column(DateTime, default=datetime.utcnow)
 
     conversation = relationship("Conversation", back_populates="documents")

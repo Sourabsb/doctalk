@@ -89,3 +89,9 @@ def signin(payload: SignInRequest, db: Session = Depends(get_db)):
 
     token = create_access_token({"sub": str(user.id)})
     return AuthResponse(access_token=token, user=UserProfile.model_validate(user))
+
+
+@router.get("/verify-token", response_model=UserProfile)
+def verify_token(current_user: User = Depends(get_current_user)):
+    """Verify if the current token is valid and return user profile"""
+    return UserProfile.model_validate(current_user)

@@ -55,16 +55,16 @@ const FileUpload = ({ onUploadSuccess, isProcessing, setIsProcessing }) => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
+    <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 text-gray-800">
       <div className="max-w-6xl mx-auto px-6 py-12">
         {/* Hero Section */}
         <div className="text-center mb-16">
           <div className="mb-8">
-            <h1 className="text-5xl font-bold mb-6">
-              Meet <span className="bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">DocTalk</span>,<br />
+            <h1 className="text-5xl font-bold mb-6 text-gray-800">
+              Meet <span className="bg-gradient-to-r from-amber-500 to-orange-500 bg-clip-text text-transparent">DocTalk</span>,<br />
               Your AI Document Assistant
             </h1>
-            <p className="text-xl text-gray-400 max-w-2xl mx-auto">
+            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
               Upload multiple documents and have intelligent cross-document conversations with AI-powered insights.
             </p>
           </div>
@@ -72,7 +72,7 @@ const FileUpload = ({ onUploadSuccess, isProcessing, setIsProcessing }) => {
 
         {/* Main Content - Upload Demo */}
         <div className="max-w-3xl mx-auto mb-16">
-          <div className="bg-gradient-to-br from-purple-600 to-blue-600 rounded-2xl p-8 text-white min-h-[400px] flex flex-col">
+          <div className="bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl p-8 text-white min-h-[400px] flex flex-col shadow-xl">
             <div className="flex items-center space-x-4 mb-6">
               <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
                 <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
@@ -91,7 +91,7 @@ const FileUpload = ({ onUploadSuccess, isProcessing, setIsProcessing }) => {
                 onClick={() => setMode('online')}
                 className={`flex-1 px-4 py-3 rounded-lg transition-all duration-200 ${
                   mode === 'online'
-                    ? 'bg-white text-purple-600 shadow-lg'
+                    ? 'bg-white text-amber-600 shadow-lg'
                     : 'bg-white/10 text-white hover:bg-white/20'
                 }`}
               >
@@ -110,7 +110,7 @@ const FileUpload = ({ onUploadSuccess, isProcessing, setIsProcessing }) => {
                 onClick={() => setMode('offline')}
                 className={`flex-1 px-4 py-3 rounded-lg transition-all duration-200 ${
                   mode === 'offline'
-                    ? 'bg-white text-purple-600 shadow-lg'
+                    ? 'bg-white text-amber-600 shadow-lg'
                     : 'bg-white/10 text-white hover:bg-white/20'
                 }`}
               >
@@ -220,7 +220,7 @@ const FileUpload = ({ onUploadSuccess, isProcessing, setIsProcessing }) => {
                 <button
                   onClick={handleUpload}
                   disabled={isProcessing || mode === 'offline'}
-                  className="w-full py-3 bg-white text-purple-600 rounded-lg font-semibold hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="w-full py-3 bg-white text-amber-600 rounded-lg font-semibold hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   {isProcessing ? 'Processing...' : mode === 'offline' ? 'Offline Mode (Coming Soon)' : 'Start AI Analysis'}
                 </button>
@@ -232,48 +232,48 @@ const FileUpload = ({ onUploadSuccess, isProcessing, setIsProcessing }) => {
 
         {/* Features Section - Below Upload */}
         <div className="max-w-5xl mx-auto">
-          <h3 className="text-3xl font-bold text-white text-center mb-12">Cross-Document Intelligence</h3>
+          <h3 className="text-3xl font-bold text-gray-800 text-center mb-12">Cross-Document Intelligence</h3>
           
           <div className="grid md:grid-cols-3 gap-8 mb-12">
-            <div className="bg-gray-800/50 rounded-xl p-6 text-center">
-              <div className="w-12 h-12 bg-purple-600/20 rounded-lg flex items-center justify-center mx-auto mb-4">
-                <svg className="w-6 h-6 text-purple-400" fill="currentColor" viewBox="0 0 20 20">
+            <div className="bg-white/80 backdrop-blur-md rounded-xl p-6 text-center border border-amber-100 shadow-lg">
+              <div className="w-12 h-12 bg-amber-100 rounded-lg flex items-center justify-center mx-auto mb-4">
+                <svg className="w-6 h-6 text-amber-600" fill="currentColor" viewBox="0 0 20 20">
                   <path d="M7 3a1 1 0 000 2h6a1 1 0 100-2H7zM4 7a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1zM2 11a2 2 0 012-2h12a2 2 0 012 2v4a2 2 0 01-2 2H4a2 2 0 01-2-2v-4z" />
                 </svg>
               </div>
-              <h4 className="text-white font-semibold mb-2">Multiple Formats</h4>
-              <p className="text-gray-400 text-sm">Upload PDFs, Word docs, images, and text files together</p>
+              <h4 className="text-gray-800 font-semibold mb-2">Multiple Formats</h4>
+              <p className="text-gray-600 text-sm">Upload PDFs, Word docs, images, and text files together</p>
             </div>
             
-            <div className="bg-gray-800/50 rounded-xl p-6 text-center">
-              <div className="w-12 h-12 bg-blue-600/20 rounded-lg flex items-center justify-center mx-auto mb-4">
-                <svg className="w-6 h-6 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+            <div className="bg-white/80 backdrop-blur-md rounded-xl p-6 text-center border border-amber-100 shadow-lg">
+              <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center mx-auto mb-4">
+                <svg className="w-6 h-6 text-orange-600" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
                 </svg>
               </div>
-              <h4 className="text-white font-semibold mb-2">Cross-Document Analysis</h4>
-              <p className="text-gray-400 text-sm">Compare and analyze information across all uploaded files</p>
+              <h4 className="text-gray-800 font-semibold mb-2">Cross-Document Analysis</h4>
+              <p className="text-gray-600 text-sm">Compare and analyze information across all uploaded files</p>
             </div>
             
-            <div className="bg-gray-800/50 rounded-xl p-6 text-center">
-              <div className="w-12 h-12 bg-green-600/20 rounded-lg flex items-center justify-center mx-auto mb-4">
-                <svg className="w-6 h-6 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+            <div className="bg-white/80 backdrop-blur-md rounded-xl p-6 text-center border border-amber-100 shadow-lg">
+              <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center mx-auto mb-4">
+                <svg className="w-6 h-6 text-yellow-600" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
                 </svg>
               </div>
-              <h4 className="text-white font-semibold mb-2">Smart Conversations</h4>
-              <p className="text-gray-400 text-sm">Ask questions that span multiple documents with context-aware AI</p>
+              <h4 className="text-gray-800 font-semibold mb-2">Smart Conversations</h4>
+              <p className="text-gray-600 text-sm">Ask questions that span multiple documents with context-aware AI</p>
             </div>
           </div>
           
-          <div className="bg-gray-800/50 rounded-xl p-6 text-center">
-            <div className="w-12 h-12 bg-indigo-600/20 rounded-lg flex items-center justify-center mx-auto mb-4">
-              <svg className="w-6 h-6 text-indigo-400" fill="currentColor" viewBox="0 0 20 20">
+          <div className="bg-white/80 backdrop-blur-md rounded-xl p-6 text-center border border-amber-100 shadow-lg">
+            <div className="w-12 h-12 bg-amber-100 rounded-lg flex items-center justify-center mx-auto mb-4">
+              <svg className="w-6 h-6 text-amber-600" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M7 2a1 1 0 011 1v1h3a1 1 0 110 2H9.578a18.87 18.87 0 01-1.724 4.78c.29.354.596.696.914 1.026a1 1 0 11-1.44 1.389c-.188-.196-.373-.396-.554-.6a19.098 19.098 0 01-3.107 3.567 1 1 0 01-1.334-1.49 17.087 17.087 0 003.13-3.733 18.992 18.992 0 01-1.487-2.494 1 1 0 111.79-.89c.234.47.489.928.764 1.372.417-.934.752-1.913.997-2.927H3a1 1 0 110-2h3V3a1 1 0 011-1zm6 6a1 1 0 01.894.553l2.991 5.982a.869.869 0 01.02.037l.99 1.98a1 1 0 11-1.79.894L15.383 16h-4.764l-.724 1.447a1 1 0 11-1.788-.894l.99-1.98.019-.038 2.99-5.982A1 1 0 0113 8zm-1.382 6h2.764L13 11.236 11.618 14z" clipRule="evenodd" />
               </svg>
             </div>
-            <h4 className="text-white font-semibold mb-2">Multi-Lingual Support</h4>
-            <p className="text-gray-400 text-sm">Process and understand documents in multiple languages seamlessly</p>
+            <h4 className="text-gray-800 font-semibold mb-2">Multi-Lingual Support</h4>
+            <p className="text-gray-600 text-sm">Process and understand documents in multiple languages seamlessly</p>
           </div>
         </div>
       </div>

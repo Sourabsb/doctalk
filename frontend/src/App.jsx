@@ -4,6 +4,7 @@ import ProtectedRoute from './components/ProtectedRoute.jsx'
 import SignIn from './pages/SignIn.jsx'
 import SignUp from './pages/SignUp.jsx'
 import Dashboard from './pages/Dashboard.jsx'
+import Landing from './pages/Landing.jsx'
 import { useAuth } from './context/AuthContext.jsx'
 
 function App() {
@@ -11,16 +12,17 @@ function App() {
 
   return (
     <Routes>
+      <Route path="/" element={<Landing />} />
       <Route
         path="/signin"
-        element={isAuthenticated ? <Navigate to="/" replace /> : <SignIn />}
+        element={isAuthenticated ? <Navigate to="/app" replace /> : <SignIn />}
       />
       <Route
         path="/signup"
-        element={isAuthenticated ? <Navigate to="/" replace /> : <SignUp />}
+        element={isAuthenticated ? <Navigate to="/app" replace /> : <SignUp />}
       />
       <Route
-        path="/"
+        path="/app"
         element={
           <ProtectedRoute>
             <Dashboard />
@@ -29,7 +31,7 @@ function App() {
       />
       <Route
         path="*"
-        element={<Navigate to={isAuthenticated ? '/' : '/signin'} replace />}
+        element={<Navigate to={isAuthenticated ? '/app' : '/'} replace />}
       />
     </Routes>
   )
