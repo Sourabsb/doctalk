@@ -20,6 +20,7 @@ class Conversation(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     title = Column(String, nullable=False)
+    llm_mode = Column(String, default="api")  # 'api' (Gemini) or 'local' (Ollama)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow)
 
@@ -76,5 +77,6 @@ class ChatMessage(Base):
     reply_to_message_id = Column(Integer, ForeignKey("chat_messages.id"), nullable=True, index=True)
     version_index = Column(Integer, default=1)
     is_archived = Column(Boolean, default=False)
+    edit_group_id = Column(Integer, nullable=True, index=True)  # Groups edited versions together
 
     conversation = relationship("Conversation", back_populates="messages")

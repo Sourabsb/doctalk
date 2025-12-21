@@ -439,7 +439,26 @@ const Dashboard = () => {
               </div>
 
               <div className={viewMode === 'list' ? 'flex-1' : ''}>
-                <h3 className={`font-semibold mb-1 line-clamp-2 ${isDark ? 'text-white' : 'text-gray-800'}`}>{conv.title || 'Untitled notebook'}</h3>
+                <div className="flex items-center gap-2 mb-1">
+                  <h3 className={`font-semibold line-clamp-2 ${isDark ? 'text-white' : 'text-gray-800'}`}>{conv.title || 'Untitled notebook'}</h3>
+                  {/* LLM Mode Badge */}
+                  <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium flex-shrink-0 ${
+                    conv.llm_mode === 'local'
+                      ? isDark ? 'bg-amber-500/20 text-amber-300' : 'bg-amber-100 text-amber-700'
+                      : isDark ? 'bg-blue-500/20 text-blue-300' : 'bg-blue-100 text-blue-700'
+                  }`}>
+                    {conv.llm_mode === 'local' ? (
+                      <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                      </svg>
+                    ) : (
+                      <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
+                      </svg>
+                    )}
+                    {conv.llm_mode === 'local' ? 'Local' : 'Cloud'}
+                  </span>
+                </div>
                 <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                   {new Date(conv.updated_at || conv.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                   {conv.document_count && ` • ${conv.document_count} sources`}

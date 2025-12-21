@@ -4,13 +4,13 @@ import {
   ChevronLeft, ChevronRight, Plus, FileText, Search, Globe, Headphones,
   Video, Brain, FileBarChart, BookOpen, HelpCircle, Image, Presentation,
   StickyNote, X, Upload, File, Sparkles, MessageSquare, Volume2,
-  PanelLeft, PanelRight, Pencil, Undo2, Redo2, Bold, Italic, Link2, List, ListOrdered, RemoveFormatting, ChevronDown, FileUp, Trash, AlertTriangle, RefreshCw, Loader2
+  PanelLeft, PanelRight, Pencil, Undo2, Redo2, Bold, Italic, Link2, List, ListOrdered, RemoveFormatting, ChevronDown, FileUp, Trash, AlertTriangle, RefreshCw, Loader2, Square
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { getConversation, sendMessage, uploadFiles, addDocumentsToConversation, editMessage, deleteMessage as deleteMessageApi, deleteDocument, createNote, updateNote, convertNoteToSource, toggleDocument } from '../utils/api';
+import { getConversation, sendMessage, sendMessageStream, uploadFiles, addDocumentsToConversation, editMessage, deleteMessage as deleteMessageApi, deleteDocument, createNote, updateNote, convertNoteToSource, unconvertNoteFromSource, toggleDocument } from '../utils/api';
 
 // Resizable Panel Component
 const ResizablePanel = ({ children, width, minWidth, maxWidth, onResize, side, isDark, collapsed }) => {
@@ -86,6 +86,8 @@ const ResizablePanel = ({ children, width, minWidth, maxWidth, onResize, side, i
 // Citation component for inline citations - NotebookLM style
 const InlineCitation = ({ number, source, chunkContent, isDark, onCitationClick }) => {
   const [showTooltip, setShowTooltip] = useState(false);
+  const buttonRef = useRef(null);
+  const [tooltipPosition, setTooltipPosition] = useState('center');
   
   const handleClick = (e) => {
     e.stopPropagation();
@@ -93,14 +95,53 @@ const InlineCitation = ({ number, source, chunkContent, isDark, onCitationClick 
     setShowTooltip(false);
     onCitationClick(source, chunkContent);
   };
+
+  const handleMouseEnter = () => {
+    if (buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      const tooltipWidth = 320; // w-80 = 20rem = 320px
+      
+      // Check if tooltip would overflow left
+      if (rect.left < tooltipWidth / 2 + 16) {
+        setTooltipPosition('left');
+      }
+      // Check if tooltip would overflow right
+      else if (window.innerWidth - rect.right < tooltipWidth / 2 + 16) {
+        setTooltipPosition('right');
+      }
+      else {
+        setTooltipPosition('center');
+      }
+    }
+    setShowTooltip(true);
+  };
+  
+  const getTooltipStyle = () => {
+    if (tooltipPosition === 'left') {
+      return { left: '0', transform: 'translateX(0)' };
+    } else if (tooltipPosition === 'right') {
+      return { right: '0', left: 'auto', transform: 'translateX(0)' };
+    }
+    return { left: '50%', transform: 'translateX(-50%)' };
+  };
+
+  const getArrowStyle = () => {
+    if (tooltipPosition === 'left') {
+      return { left: '16px', transform: 'translateX(0)' };
+    } else if (tooltipPosition === 'right') {
+      return { right: '16px', left: 'auto', transform: 'translateX(0)' };
+    }
+    return { left: '50%', transform: 'translateX(-50%)' };
+  };
   
   return (
     <span 
       className="relative inline"
-      onMouseEnter={() => setShowTooltip(true)}
+      onMouseEnter={handleMouseEnter}
       onMouseLeave={() => setShowTooltip(false)}
     >
       <button
+        ref={buttonRef}
         onClick={handleClick}
         className={`inline-flex items-center justify-center min-w-[16px] h-[16px] mx-0.5 text-[10px] font-bold rounded cursor-pointer
           ${isDark ? 'bg-amber-500/30 text-amber-300 hover:bg-amber-500/50' : 'bg-amber-100 text-amber-700 hover:bg-amber-200'}
@@ -121,19 +162,16 @@ const InlineCitation = ({ number, source, chunkContent, isDark, onCitationClick 
           className={`absolute z-[99999] p-3 rounded-lg text-xs w-80 shadow-2xl
             ${isDark ? 'bg-[#2a2a2a] text-gray-200 border border-white/10' : 'bg-white text-gray-800 border border-gray-200'}`}
           style={{ 
-            bottom: '100%',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            marginBottom: '8px'
+            bottom: 'calc(100% + 8px)',
+            ...getTooltipStyle()
           }}
         >
-          {/* Arrow */}
+          {/* Arrow pointing down */}
           <div 
             className={`absolute w-3 h-3 rotate-45 ${isDark ? 'bg-[#2a2a2a] border-r border-b border-white/10' : 'bg-white border-r border-b border-gray-200'}`}
             style={{
               bottom: '-6px',
-              left: '50%',
-              transform: 'translateX(-50%)'
+              ...getArrowStyle()
             }}
           />
           <div className={`flex items-center gap-2 mb-2 pb-2 border-b ${isDark ? 'border-white/10' : 'border-gray-100'}`}>
@@ -162,7 +200,7 @@ const InlineCitation = ({ number, source, chunkContent, isDark, onCitationClick 
 };
 
 // Markdown renderer with theme support and inline citations
-const MarkdownRenderer = ({ content, isDark, sources = [], sourceContents = {}, onCitationClick }) => {
+const MarkdownRenderer = ({ content, isDark, sources = [], sourceChunks = [], onCitationClick }) => {
   const [copiedCode, setCopiedCode] = useState(null);
 
   const copyToClipboard = async (code, index) => {
@@ -171,94 +209,42 @@ const MarkdownRenderer = ({ content, isDark, sources = [], sourceContents = {}, 
     setTimeout(() => setCopiedCode(null), 2000);
   };
   
-  // Process text to add inline citations where sources are referenced in the AI response
   const processTextWithCitations = (text, children) => {
-    if (!sources || sources.length === 0 || typeof text !== 'string') {
+    if (!sourceChunks || sourceChunks.length === 0 || typeof text !== 'string') {
       return children;
     }
     
+    const citationRegex = /\[(\d+)\]/g;
     const parts = [];
     let lastIndex = 0;
+    let match;
     let hasMatchedCitation = false;
     
-    // Build a regex to match source file names in various formats
-    // Match: `source.pdf`, [source.pdf], "source.pdf", source.pdf, source.pdf_page_1, etc.
-    const sourcePatterns = sources.map((source, idx) => {
-      const baseName = source.replace(/\.[^.]+$/, ''); // Remove extension
-      // Also handle _page_X suffix
-      const baseNameNoPage = baseName.replace(/_page_\d+$/, '');
+    while ((match = citationRegex.exec(text)) !== null) {
+      const citationNum = parseInt(match[1], 10);
+      const chunk = sourceChunks.find(sc => sc.index === citationNum);
       
-      const escapedSource = source.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const escapedBaseName = baseName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const escapedBaseNameNoPage = baseNameNoPage.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      
-      return { 
-        source, 
-        idx, 
-        // Match various patterns including backticks, brackets, quotes
-        regex: new RegExp(
-          `(\`${escapedSource}\`|\`${escapedBaseName}\`|\`${escapedBaseNameNoPage}[^)\`]*\`|` +
-          `\\[${escapedSource}\\]|\\[${escapedBaseName}\\]|` +
-          `"${escapedSource}"|"${escapedBaseName}"|` +
-          `${escapedSource}|${escapedBaseName})(?![\\w])`, 
-          'gi'
-        )
-      };
-    });
-    
-    // Find all matches and their positions
-    const allMatches = [];
-    sourcePatterns.forEach(({ source, idx, regex }) => {
-      let match;
-      regex.lastIndex = 0;
-      while ((match = regex.exec(text)) !== null) {
-        allMatches.push({
-          index: match.index,
-          length: match[0].length,
-          sourceIdx: idx,
-          source: source,
-          matchText: match[0]
-        });
-      }
-    });
-    
-    // Sort by position
-    allMatches.sort((a, b) => a.index - b.index);
-    
-    // Remove overlapping matches (keep first occurrence)
-    const filteredMatches = [];
-    let lastEnd = 0;
-    for (const match of allMatches) {
-      if (match.index >= lastEnd) {
-        filteredMatches.push(match);
-        lastEnd = match.index + match.length;
+      if (chunk) {
+        if (match.index > lastIndex) {
+          parts.push(text.substring(lastIndex, match.index));
+        }
+        
+        parts.push(
+          <InlineCitation 
+            key={`cite-${match.index}`}
+            number={citationNum}
+            source={chunk.source}
+            chunkContent={chunk.chunk || ''}
+            isDark={isDark}
+            onCitationClick={onCitationClick}
+          />
+        );
+        
+        lastIndex = match.index + match[0].length;
+        hasMatchedCitation = true;
       }
     }
     
-    // Build result with citation components
-    for (const match of filteredMatches) {
-      if (match.index > lastIndex) {
-        parts.push(text.substring(lastIndex, match.index));
-      }
-      
-      // Add inline citation after the source mention
-      parts.push(match.matchText);
-      parts.push(
-        <InlineCitation 
-          key={`cite-${match.index}`}
-          number={match.sourceIdx + 1}
-          source={match.source}
-          chunkContent={sourceContents[match.source] || ''}
-          isDark={isDark}
-          onCitationClick={onCitationClick}
-        />
-      );
-      
-      lastIndex = match.index + match.length;
-      hasMatchedCitation = true;
-    }
-    
-    // Add remaining text
     if (lastIndex < text.length) {
       parts.push(text.substring(lastIndex));
     }
@@ -310,34 +296,6 @@ const MarkdownRenderer = ({ content, isDark, sources = [], sourceContents = {}, 
               </div>
             );
           }
-          // Check if inline code is a source reference
-          const codeText = String(children);
-          const matchedSourceIdx = sources.findIndex(s => {
-            const baseName = s.replace(/\.[^.]+$/, '');
-            const baseNameNoPage = baseName.replace(/_page_\d+$/, '');
-            return codeText.includes(s) || codeText.includes(baseName) || 
-                   s.includes(codeText) || baseName.includes(codeText) ||
-                   codeText.toLowerCase().includes(baseNameNoPage.toLowerCase());
-          });
-          
-          if (matchedSourceIdx !== -1) {
-            // It's a source reference - render as citation
-            return (
-              <span className="inline">
-                <code className={`px-1.5 py-0.5 rounded text-sm
-                  ${isDark ? 'bg-gray-700 text-amber-300' : 'bg-amber-100 text-amber-800'}`} {...props}>
-                  {children}
-                </code>
-                <InlineCitation 
-                  number={matchedSourceIdx + 1}
-                  source={sources[matchedSourceIdx]}
-                  chunkContent={sourceContents[sources[matchedSourceIdx]] || ''}
-                  isDark={isDark}
-                  onCitationClick={onCitationClick}
-                />
-              </span>
-            );
-          }
           
           return (
             <code className={`px-1.5 py-0.5 rounded text-sm
@@ -347,7 +305,6 @@ const MarkdownRenderer = ({ content, isDark, sources = [], sourceContents = {}, 
           );
         },
         p: ({ children, node }) => {
-          // Process text nodes to add inline citations
           const processedChildren = React.Children.map(children, child => {
             if (typeof child === 'string') {
               return processTextWithCitations(child, child);
@@ -356,9 +313,17 @@ const MarkdownRenderer = ({ content, isDark, sources = [], sourceContents = {}, 
           });
           return <p className={`mb-3 last:mb-0 leading-relaxed ${isDark ? 'text-gray-100' : 'text-gray-800'}`}>{processedChildren}</p>;
         },
+        li: ({ children }) => {
+          const processedChildren = React.Children.map(children, child => {
+            if (typeof child === 'string') {
+              return processTextWithCitations(child, child);
+            }
+            return child;
+          });
+          return <li className={`leading-relaxed ${isDark ? 'text-gray-100' : 'text-gray-800'}`}>{processedChildren}</li>;
+        },
         ul: ({ children }) => <ul className={`list-disc list-inside mb-3 space-y-1 ${isDark ? 'text-gray-100' : 'text-gray-800'}`}>{children}</ul>,
         ol: ({ children }) => <ol className={`list-decimal list-inside mb-3 space-y-1 ${isDark ? 'text-gray-100' : 'text-gray-800'}`}>{children}</ol>,
-        li: ({ children }) => <li className={`leading-relaxed ${isDark ? 'text-gray-100' : 'text-gray-800'}`}>{children}</li>,
         h1: ({ children }) => <h1 className={`text-2xl font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>{children}</h1>,
         h2: ({ children }) => <h2 className={`text-xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>{children}</h2>,
         h3: ({ children }) => <h3 className={`text-lg font-semibold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>{children}</h3>,
@@ -413,6 +378,12 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
   const [isVoiceEnabled, setIsVoiceEnabled] = useState(false);
   const [conversationTitle, setConversationTitle] = useState('');
   const [documents, setDocuments] = useState([]);
+  const [currentLlmMode, setCurrentLlmMode] = useState('api');
+  
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [abortController, setAbortController] = useState(null);
+  const [userScrolledUp, setUserScrolledUp] = useState(false);
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   
   // Title editing states
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -453,6 +424,7 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
   
   // Refs
   const messagesEndRef = useRef(null);
+  const messagesContainerRef = useRef(null);
   const fileInputRef = useRef(null);
   const textareaRef = useRef(null);
 
@@ -486,10 +458,24 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
     { icon: Presentation, label: 'Slide Deck', color: isDark ? 'text-indigo-400' : 'text-indigo-600' },
   ];
 
-  // Auto-scroll to bottom
   const scrollToBottom = useCallback(() => {
+    if (!userScrolledUp) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [userScrolledUp]);
+
+  const handleScroll = useCallback(() => {
+    if (!messagesContainerRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
+    const isAtBottom = scrollHeight - scrollTop - clientHeight < 50;
+    setUserScrolledUp(!isAtBottom);
+    setShowScrollToBottom(!isAtBottom && isStreaming);
+  }, [isStreaming]);
+
+  const handleScrollToBottom = () => {
+    setUserScrolledUp(false);
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, []);
+  };
 
   useEffect(() => {
     scrollToBottom();
@@ -530,12 +516,10 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
   const loadConversation = async () => {
     try {
       const data = await getConversation(conversationId);
-      
       setConversationTitle(data.conversation?.title || data.title || 'New Chat');
+      setCurrentLlmMode(data.llm_mode || 'api');
       
       if (data.documents) {
-        console.log('RAW documents from backend:', JSON.stringify(data.documents, null, 2));
-        
         const allDocs = data.documents.map((doc, idx) => {
           if (typeof doc === 'object' && doc !== null) {
             return { 
@@ -551,14 +535,8 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
           return { id: idx, filename: doc, doc_type: 'file', is_active: true, has_embeddings: false };
         });
         
-        console.log('All docs after transform:', allDocs);
-        
         const files = allDocs.filter(d => d.doc_type !== 'note');
         const notesDocs = allDocs.filter(d => d.doc_type === 'note');
-        
-        console.log('Files:', files);
-        console.log('Notes:', notesDocs);
-        
         const convertedNotes = notesDocs.filter(n => n.has_embeddings);
         
         setDocuments([...files, ...convertedNotes]);
@@ -570,8 +548,6 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
           createdAt: n.uploaded_at,
           convertedToSource: n.has_embeddings || false
         }));
-        
-        console.log('Setting notes to:', loadedNotes);
         
         setNotes(loadedNotes);
         localStorage.setItem(`notes_${conversationId}`, JSON.stringify(loadedNotes));
@@ -594,17 +570,158 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
       }
       
       if (data.messages) {
-        const normalizedMessages = data.messages.map(msg => ({
-          id: msg.id,
-          role: msg.role === 'ai' ? 'assistant' : msg.role,
-          content: msg.content,
-          sources: msg.sources || [],
-          timestamp: msg.timestamp || msg.created_at,
-        }));
+        // Group messages by edit_group_id to reconstruct edit history
+        const editGroups = {};
+        const assistantResponses = {};
+        
+        // First pass: group user messages by edit_group_id and map assistant responses
+        // For messages without edit_group_id, use their own id as the group id
+        data.messages.forEach(msg => {
+          if (msg.role === 'user') {
+            // Use edit_group_id if set, otherwise use the message's own id
+            const groupId = msg.edit_group_id || msg.id;
+            if (!editGroups[groupId]) {
+              editGroups[groupId] = [];
+            }
+            editGroups[groupId].push({ ...msg, _effectiveGroupId: groupId });
+          }
+          // Map assistant messages by their reply_to_message_id
+          if (msg.role === 'assistant' && msg.reply_to_message_id) {
+            assistantResponses[msg.reply_to_message_id] = msg;
+          }
+        });
+        
+        // Sort each edit group by version_index
+        Object.values(editGroups).forEach(group => {
+          group.sort((a, b) => (a.version_index || 1) - (b.version_index || 1));
+        });
+        
+        // Build normalized messages with edit history
+        const processedGroupIds = new Set();
+        const processedAssistantIds = new Set();
+        const normalizedMessages = [];
+        
+        data.messages.forEach(msg => {
+          const role = msg.role === 'ai' ? 'assistant' : msg.role;
+          
+          if (role === 'user') {
+            // Use edit_group_id if set, otherwise use message's own id
+            const groupId = msg.edit_group_id || msg.id;
+            
+            // If has edit group and already processed, skip
+            if (processedGroupIds.has(groupId)) {
+              return;
+            }
+            
+            if (editGroups[groupId] && editGroups[groupId].length > 1) {
+              // Multiple versions exist - build edit history
+              processedGroupIds.add(groupId);
+              const group = editGroups[groupId];
+              
+              const editHistory = group.map((editMsg, idx) => {
+                const assistantMsg = assistantResponses[editMsg.id];
+                if (assistantMsg) processedAssistantIds.add(assistantMsg.id);
+                return {
+                  content: editMsg.content,
+                  timestamp: editMsg.created_at || editMsg.timestamp,
+                  branchId: `${groupId}_${idx}`,
+                  messageId: editMsg.id,
+                  followingMessages: assistantMsg ? [{
+                    id: assistantMsg.id,
+                    role: 'assistant',
+                    content: assistantMsg.content,
+                    sources: assistantMsg.sources || [],
+                    timestamp: assistantMsg.created_at || assistantMsg.timestamp,
+                  }] : []
+                };
+              });
+              
+              // Use the last version as the current message
+              const lastVersion = group[group.length - 1];
+              const lastAssistant = assistantResponses[lastVersion.id];
+              
+              normalizedMessages.push({
+                id: group[0].id,
+                role: 'user',
+                content: lastVersion.content,
+                sources: [],
+                timestamp: lastVersion.created_at || lastVersion.timestamp,
+                edit_group_id: groupId,
+                editHistory,
+                editIndex: editHistory.length - 1,
+                currentBranchId: `${groupId}_${editHistory.length - 1}`,
+              });
+              
+              // Add the current assistant response
+              if (lastAssistant) {
+                processedAssistantIds.add(lastAssistant.id);
+                normalizedMessages.push({
+                  id: lastAssistant.id,
+                  role: 'assistant',
+                  content: lastAssistant.content,
+                  sources: lastAssistant.sources || [],
+                  timestamp: lastAssistant.created_at || lastAssistant.timestamp,
+                  branchId: `${groupId}_${editHistory.length - 1}`,
+                });
+              }
+            } else {
+              // Single version or no edit group - just add the message normally
+              normalizedMessages.push({
+                id: msg.id,
+                role: 'user',
+                content: msg.content,
+                sources: [],
+                timestamp: msg.created_at || msg.timestamp,
+                edit_group_id: groupId || null,
+              });
+            }
+          } else if (role === 'assistant') {
+            // Skip if already processed as part of edit group
+            if (processedAssistantIds.has(msg.id)) {
+              return;
+            }
+            
+            normalizedMessages.push({
+              id: msg.id,
+              role: 'assistant',
+              content: msg.content,
+              sources: msg.sources || [],
+              timestamp: msg.created_at || msg.timestamp,
+            });
+          }
+        });
+        
         setMessages(normalizedMessages);
       }
     } catch (error) {
       console.error('Error loading conversation:', error);
+    }
+  };
+
+  const handleStop = () => {
+    if (abortController) {
+      abortController.abort();
+      setAbortController(null);
+      setIsStreaming(false);
+      setIsLoading(false);
+      
+      // Mark last streaming message as stopped (whether thinking or generating)
+      setMessages(prev => {
+        const newMessages = [...prev];
+        for (let i = newMessages.length - 1; i >= 0; i--) {
+          if (newMessages[i].isStreaming || newMessages[i].isWaitingForFirstToken) {
+            newMessages[i] = {
+              ...newMessages[i],
+              isStreaming: false,
+              isWaitingForFirstToken: false,
+              content: newMessages[i].content || '(Generation stopped)',
+              isStopped: true
+            };
+            break;
+          }
+        }
+        return newMessages;
+      });
     }
   };
 
@@ -624,26 +741,94 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
     const currentInput = inputMessage;
     setInputMessage('');
     setIsLoading(true);
+    setIsStreaming(true);
+    setUserScrolledUp(false); // Reset scroll state
+
+    // Create abort controller for this request
+    const controller = new AbortController();
+    setAbortController(controller);
 
     try {
       // Send message if there is one
       if (currentInput.trim()) {
-        const data = await sendMessage(conversationId, currentInput);
-
-        const assistantMessage = {
-          id: Date.now() + 1,
+        // Create a placeholder for streaming response
+        const streamingMessageId = Date.now() + 1;
+        let streamedContent = '';
+        let sources = [];
+        let sourceChunks = [];
+        let hasReceivedFirstToken = false;
+        
+        // Add placeholder message for streaming with waiting state
+        setMessages(prev => [...prev, {
+          id: streamingMessageId,
           role: 'assistant',
-          content: data.response,
-          sources: data.sources || [],
-          sourceChunks: data.source_chunks || [],
+          content: '',
+          sources: [],
+          sourceChunks: [],
           timestamp: new Date().toISOString(),
-        };
+          isStreaming: true,
+          isWaitingForFirstToken: true,  // New flag for "Thinking..." state
+        }]);
 
-        setMessages(prev => [...prev, assistantMessage]);
-
-        if (data.conversation_id && !conversationId) {
-          onConversationUpdate?.(data.conversation_id);
-        }
+        await sendMessageStream(
+          conversationId,
+          currentInput,
+          // onToken - update the message with each new token
+          (token) => {
+            if (!hasReceivedFirstToken) {
+              hasReceivedFirstToken = true;
+            }
+            streamedContent += token;
+            setMessages(prev => prev.map(msg => 
+              msg.id === streamingMessageId 
+                ? { ...msg, content: streamedContent, isWaitingForFirstToken: false }
+                : msg
+            ));
+          },
+          // onMeta - receive sources at the start
+          (meta) => {
+            sources = meta.sources || [];
+            sourceChunks = meta.source_chunks || [];
+            setMessages(prev => prev.map(msg => 
+              msg.id === streamingMessageId 
+                ? { ...msg, sources, sourceChunks }
+                : msg
+            ));
+          },
+          // onDone - finalize the message
+          (data) => {
+            setMessages(prev => prev.map(msg => 
+              msg.id === streamingMessageId 
+                ? { 
+                    ...msg, 
+                    id: data.assistant_message_id || streamingMessageId,
+                    content: data.full_response || streamedContent,
+                    isStreaming: false,
+                    isWaitingForFirstToken: false
+                  }
+                : msg
+            ));
+            setIsStreaming(false);
+            setAbortController(null);
+          },
+          // onError
+          (error) => {
+            console.error('Streaming error:', error);
+            setMessages(prev => prev.map(msg => 
+              msg.id === streamingMessageId 
+                ? { 
+                    ...msg, 
+                    content: `Error: ${error}`,
+                    isStreaming: false,
+                    isError: true 
+                  }
+                : msg
+            ));
+            setIsStreaming(false);
+            setAbortController(null);
+          },
+          controller.signal
+        );
       }
     } catch (error) {
       console.error('Error sending message:', error);
@@ -928,100 +1113,186 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
     window.speechSynthesis.speak(utterance);
   };
 
-  // Handle edit and regenerate for user messages - with proper branching
+  // Handle edit and regenerate with streaming
   const handleEditAndRegenerate = async (messageId) => {
     if (!editContent.trim()) return;
     
-    // Find the message index
     const messageIndex = messages.findIndex(m => m.id === messageId);
     if (messageIndex === -1) return;
     
     const oldMessage = messages[messageIndex];
     
-    // Build edit history - each entry contains its own content and the responses that follow it
+    // Get the edit_group_id - use existing one or the original message's ID
+    const editGroupId = oldMessage.edit_group_id || oldMessage.id;
+    
+    // Build edit history
     const existingHistory = oldMessage.editHistory || [{
       content: oldMessage.content,
       timestamp: oldMessage.timestamp,
       branchId: oldMessage.id + '_0',
-      // Store all messages that came after this version (its "branch")
-      followingMessages: messages.slice(messageIndex + 1)
+      followingMessages: messages.slice(messageIndex + 1),
+      messageId: oldMessage.id
     }];
     
-    // Save current branch's following messages to the current edit history entry
+    // Save current branch's messages
     const currentIndex = oldMessage.editIndex ?? existingHistory.length - 1;
     existingHistory[currentIndex] = {
       ...existingHistory[currentIndex],
       followingMessages: messages.slice(messageIndex + 1)
     };
     
-    // Create new edit entry with new branch
-    const newBranchId = `${oldMessage.id}_${existingHistory.length}`;
+    // Create new edit entry
+    const newBranchId = `${editGroupId}_${existingHistory.length}`;
     const newEdit = { 
       content: editContent, 
       timestamp: new Date().toISOString(),
       branchId: newBranchId,
-      followingMessages: [] // Will be populated with the new response
+      followingMessages: [],
+      messageId: null  // Will be set after we get the new message ID
     };
     
     const updatedUserMessage = {
       ...oldMessage,
       content: editContent,
       editHistory: [...existingHistory, newEdit],
-      editIndex: existingHistory.length, // Point to the new edit
+      editIndex: existingHistory.length,
       timestamp: new Date().toISOString(),
       currentBranchId: newBranchId,
+      edit_group_id: editGroupId,
     };
     
-    // Remove all messages after this one (they belong to the previous branch)
+    // Remove messages after edit, add streaming placeholder
     const messagesBeforeEdit = messages.slice(0, messageIndex);
-    setMessages([...messagesBeforeEdit, updatedUserMessage]);
+    const streamingMessageId = Date.now() + 1;
+    
+    setMessages([
+      ...messagesBeforeEdit, 
+      updatedUserMessage,
+      {
+        id: streamingMessageId,
+        role: 'assistant',
+        content: '',
+        sources: [],
+        sourceChunks: [],
+        timestamp: new Date().toISOString(),
+        isStreaming: true,
+        isWaitingForFirstToken: true,
+        branchId: newBranchId,
+      }
+    ]);
+    
     setEditingMessageId(null);
     setEditContent('');
     setIsLoading(true);
+    setIsStreaming(true);
+    setUserScrolledUp(false);
+    
+    const controller = new AbortController();
+    setAbortController(controller);
+    
+    let streamedContent = '';
+    let sources = [];
+    let sourceChunks = [];
     
     try {
-      const data = await sendMessage(conversationId, editContent);
-      
-      const assistantMessage = {
-        id: Date.now() + 1,
-        role: 'assistant',
-        content: data.response,
-        sources: data.sources || [],
-        timestamp: new Date().toISOString(),
-        branchId: newBranchId,
-      };
-      
-      // Update the edit history with the new response
-      setMessages(prev => {
-        const msgIndex = prev.findIndex(m => m.id === messageId);
-        if (msgIndex === -1) return [...prev, assistantMessage];
-        
-        const msg = prev[msgIndex];
-        const updatedHistory = [...msg.editHistory];
-        updatedHistory[updatedHistory.length - 1] = {
-          ...updatedHistory[updatedHistory.length - 1],
-          followingMessages: [assistantMessage]
-        };
-        
-        return [
-          ...prev.slice(0, msgIndex),
-          { ...msg, editHistory: updatedHistory },
-          assistantMessage
-        ];
-      });
+      await sendMessageStream(
+        conversationId,
+        editContent,
+        (token) => {
+          streamedContent += token;
+          setMessages(prev => prev.map(msg => 
+            msg.id === streamingMessageId 
+              ? { ...msg, content: streamedContent, isWaitingForFirstToken: false }
+              : msg
+          ));
+        },
+        (meta) => {
+          sources = meta.sources || [];
+          sourceChunks = meta.source_chunks || [];
+          
+          // Update the edit history with the new message ID
+          const newUserMessageId = meta.user_message_id;
+          if (newUserMessageId) {
+            setMessages(prev => {
+              const msgIdx = prev.findIndex(m => m.id === messageId);
+              if (msgIdx === -1) return prev;
+              
+              const userMsg = prev[msgIdx];
+              const updatedHistory = [...(userMsg.editHistory || [])];
+              if (updatedHistory.length > 0) {
+                updatedHistory[updatedHistory.length - 1] = {
+                  ...updatedHistory[updatedHistory.length - 1],
+                  messageId: newUserMessageId
+                };
+              }
+              
+              return prev.map((m, i) => {
+                if (i === msgIdx) return { ...m, editHistory: updatedHistory };
+                if (m.id === streamingMessageId) return { ...m, sources, sourceChunks };
+                return m;
+              });
+            });
+          } else {
+            setMessages(prev => prev.map(msg => 
+              msg.id === streamingMessageId 
+                ? { ...msg, sources, sourceChunks }
+                : msg
+            ));
+          }
+        },
+        (data) => {
+          const finalMessage = {
+            id: data.assistant_message_id || streamingMessageId,
+            role: 'assistant',
+            content: data.full_response || streamedContent,
+            sources,
+            sourceChunks,
+            timestamp: new Date().toISOString(),
+            isStreaming: false,
+            branchId: newBranchId,
+          };
+          
+          setMessages(prev => {
+            const msgIdx = prev.findIndex(m => m.id === messageId);
+            if (msgIdx === -1) return prev.map(m => m.id === streamingMessageId ? finalMessage : m);
+            
+            const userMsg = prev[msgIdx];
+            const updatedHistory = [...(userMsg.editHistory || [])];
+            if (updatedHistory.length > 0) {
+              updatedHistory[updatedHistory.length - 1] = {
+                ...updatedHistory[updatedHistory.length - 1],
+                followingMessages: [finalMessage]
+              };
+            }
+            
+            return prev.map((m, i) => {
+              if (i === msgIdx) return { ...m, editHistory: updatedHistory };
+              if (m.id === streamingMessageId) return finalMessage;
+              return m;
+            });
+          });
+          setIsStreaming(false);
+          setAbortController(null);
+        },
+        (error) => {
+          setMessages(prev => prev.map(msg => 
+            msg.id === streamingMessageId 
+              ? { ...msg, content: `Error: ${error}`, isStreaming: false, isError: true }
+              : msg
+          ));
+          setIsStreaming(false);
+          setAbortController(null);
+        },
+        controller.signal,
+        false,
+        { edit_group_id: editGroupId }  // Pass edit options
+      );
     } catch (error) {
-      console.error('Error regenerating response:', error);
-      const errorMessage = {
-        id: Date.now() + 1,
-        role: 'assistant',
-        content: 'Sorry, I encountered an error. Please try again.',
-        timestamp: new Date().toISOString(),
-        isError: true,
-        branchId: newBranchId,
-      };
-      setMessages(prev => [...prev, errorMessage]);
+      console.error('Error in edit regenerate:', error);
     } finally {
       setIsLoading(false);
+      setIsStreaming(false);
+      setAbortController(null);
     }
   };
 
@@ -1068,7 +1339,6 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
     });
   };
 
-  // Regenerate last response
   const handleRegenerate = async () => {
     const lastUserMessage = [...messages].reverse().find(m => m.role === 'user');
     if (!lastUserMessage || isLoading) return;
@@ -1076,42 +1346,123 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
     // Find and store the last assistant message index
     const lastAssistantIndex = messages.map(m => m.role).lastIndexOf('assistant');
     
-    // Keep messages up to and including the last user message, remove only the assistant response
-    const messagesWithoutLastAssistant = lastAssistantIndex !== -1 
-      ? messages.filter((_, idx) => idx !== lastAssistantIndex)
-      : messages;
-    
-    setMessages(messagesWithoutLastAssistant);
+    // Keep messages up to the last assistant (we'll replace it with streaming content)
     setIsLoading(true);
+    setIsStreaming(true);
+    setUserScrolledUp(false);
+    
+    // Create abort controller for regenerate
+    const controller = new AbortController();
+    setAbortController(controller);
+    
+    // Create a placeholder for streaming response
+    const streamingMessageId = Date.now() + 1;
+    let streamedContent = '';
+    let sources = [];
+    let sourceChunks = [];
+    let hasReceivedFirstToken = false;
+    
+    // Replace the last assistant message with streaming placeholder
+    if (lastAssistantIndex !== -1) {
+      setMessages(prev => prev.map((msg, idx) => 
+        idx === lastAssistantIndex 
+          ? {
+              ...msg,
+              id: streamingMessageId,
+              content: '',
+              sources: [],
+              sourceChunks: [],
+              isStreaming: true,
+              isWaitingForFirstToken: true,
+            }
+          : msg
+      ));
+    } else {
+      // No assistant message exists, add a new one
+      setMessages(prev => [...prev, {
+        id: streamingMessageId,
+        role: 'assistant',
+        content: '',
+        sources: [],
+        sourceChunks: [],
+        timestamp: new Date().toISOString(),
+        isStreaming: true,
+        isWaitingForFirstToken: true,
+      }]);
+    }
     
     try {
-      const data = await sendMessage(conversationId, lastUserMessage.content);
-      
-      if (data && data.response) {
-        const assistantMessage = {
-          id: data.assistant_message?.id || Date.now() + 1,
-          role: 'assistant',
-          content: data.response,
-          sources: data.sources || [],
-          timestamp: new Date().toISOString(),
-        };
-        
-        setMessages(prev => [...prev, assistantMessage]);
-      } else {
-        console.error('Invalid response from server:', data);
-        // Reload conversation to get proper state
-        await loadConversation();
-      }
+      await sendMessageStream(
+        conversationId,
+        lastUserMessage.content,
+        // onToken - update the message with each new token
+        (token) => {
+          if (!hasReceivedFirstToken) {
+            hasReceivedFirstToken = true;
+          }
+          streamedContent += token;
+          setMessages(prev => prev.map(msg => 
+            msg.id === streamingMessageId 
+              ? { ...msg, content: streamedContent, isWaitingForFirstToken: false }
+              : msg
+          ));
+        },
+        // onMeta - receive sources at the start
+        (meta) => {
+          sources = meta.sources || [];
+          sourceChunks = meta.source_chunks || [];
+          setMessages(prev => prev.map(msg => 
+            msg.id === streamingMessageId 
+              ? { ...msg, sources, sourceChunks }
+              : msg
+          ));
+        },
+        // onDone - finalize the message
+        (data) => {
+          setMessages(prev => prev.map(msg => 
+            msg.id === streamingMessageId 
+              ? { 
+                  ...msg, 
+                  id: data.assistant_message_id || streamingMessageId,
+                  content: data.full_response || streamedContent,
+                  isStreaming: false,
+                  isWaitingForFirstToken: false
+                }
+              : msg
+          ));
+          setIsStreaming(false);
+          setAbortController(null);
+        },
+        // onError
+        (error) => {
+          console.error('Regenerate streaming error:', error);
+          setMessages(prev => prev.map(msg => 
+            msg.id === streamingMessageId 
+              ? { 
+                  ...msg, 
+                  content: `Error: ${error}`,
+                  isStreaming: false,
+                  isError: true 
+                }
+              : msg
+          ));
+          setIsStreaming(false);
+          setAbortController(null);
+        },
+        controller.signal,
+        true  // regenerate = true
+      );
     } catch (error) {
       console.error('Error regenerating response:', error);
-      // Reload conversation to restore state on error
       await loadConversation();
     } finally {
       setIsLoading(false);
+      setIsStreaming(false);
+      setAbortController(null);
     }
   };
 
-  // Handle source citation click - highlight in left panel
+  // Handle source citation click
   const handleCitationClick = (source) => {
     const doc = documents.find(d => d.filename === source || d.filename?.includes(source));
     if (doc) {
@@ -1130,10 +1481,20 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
       return;
     }
     
-    // If this is a note that was converted to source, don't delete from backend
-    // Just remove from Sources list (it will still exist in Notes)
+    // If this is a note that was converted to source, just unconvert it (remove embeddings)
+    // This keeps the original note but removes it from sources
     if (docToDelete.doc_type === 'note') {
-      setDocuments(documents.filter((_, i) => i !== index));
+      try {
+        await unconvertNoteFromSource(conversationId, docToDelete.id);
+        // Remove from documents (sources) list
+        setDocuments(documents.filter((_, i) => i !== index));
+        // Update notes to mark it as not converted (so it can be converted again)
+        setNotes(prev => prev.map(n => n.id === docToDelete.id ? { ...n, convertedToSource: false, has_embeddings: false } : n));
+      } catch (error) {
+        console.error('Failed to unconvert note:', error);
+        // Still remove from sources UI even if API fails
+        setDocuments(documents.filter((_, i) => i !== index));
+      }
       setShowDeleteSourceConfirm(null);
       return;
     }
@@ -1550,10 +1911,36 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
               </button>
             )}
           </div>
+          {/* LLM Mode Badge */}
+          <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
+            currentLlmMode === 'local' 
+              ? isDark ? 'bg-amber-500/20 text-amber-300' : 'bg-amber-100 text-amber-700'
+              : isDark ? 'bg-blue-500/20 text-blue-300' : 'bg-blue-100 text-blue-700'
+          }`}>
+            {currentLlmMode === 'local' ? (
+              <>
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+                <span>Local</span>
+              </>
+            ) : (
+              <>
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
+                </svg>
+                <span>Cloud</span>
+              </>
+            )}
+          </div>
         </div>
 
         {/* Messages Area */}
-        <div className="flex-1 overflow-y-auto px-4 py-6">
+        <div 
+          ref={messagesContainerRef}
+          onScroll={handleScroll}
+          className="flex-1 overflow-y-auto px-4 py-6 relative"
+        >
           {messages.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center">
               <div className={`w-14 h-14 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center mb-5 shadow-lg ${isDark ? 'shadow-amber-500/20' : 'shadow-amber-500/30'}`}>
@@ -1643,40 +2030,43 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                   ) : (
                     /* AI Response - New design with copy, speaker, inline citations */
                     <div className={`relative max-w-[85%] rounded-xl px-4 py-3 ${theme.assistantMessage} ${theme.text} border ${theme.cardBorder} shadow-sm ${message.isError ? 'border-red-500/50 bg-red-500/10' : ''}`}>
-                      {/* AI Response Content with inline citations */}
-                      <div className={`prose prose-sm max-w-none ${isDark ? 'prose-invert' : ''}`}>
-                      <MarkdownRenderer 
-                          content={message.content} 
-                          isDark={isDark} 
-                          sources={message.sources || []}
-                          sourceContents={(() => {
-                            // Use source_chunks from backend if available, otherwise fallback
-                            const contentMap = {};
-                            if (message.sourceChunks && message.sourceChunks.length > 0) {
-                              message.sourceChunks.forEach(sc => {
-                                contentMap[sc.source] = sc.chunk;
-                              });
-                            } else {
-                              (message.sources || []).forEach(source => {
+                      {/* Show "Thinking..." when waiting for first token */}
+                      {message.isWaitingForFirstToken ? (
+                        <div className="flex items-center gap-2">
+                          <div className="flex gap-1">
+                            <span className="w-2 h-2 bg-amber-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                            <span className="w-2 h-2 bg-amber-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                            <span className="w-2 h-2 bg-amber-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                          </div>
+                          <span className={theme.textMuted}>Thinking...</span>
+                        </div>
+                      ) : (
+                        <>
+                          <div className={`prose prose-sm max-w-none ${isDark ? 'prose-invert' : ''}`}>
+                            <MarkdownRenderer 
+                              content={message.content} 
+                              isDark={isDark} 
+                              sources={message.sources || []}
+                              sourceChunks={message.sourceChunks || []}
+                              onCitationClick={(source, chunkContent) => {
                                 const doc = documents.find(d => d.filename === source || d.filename?.includes(source.split('_page_')[0]));
-                                contentMap[source] = doc?.content?.substring(0, 500) || '';
-                              });
-                            }
-                            return contentMap;
-                          })()}
-                          onCitationClick={(source, chunkContent) => {
-                            const doc = documents.find(d => d.filename === source || d.filename?.includes(source.split('_page_')[0]));
-                            if (doc) {
-                              // Open in Sources panel, not modal
-                              setLeftPanelCollapsed(false);
-                              setSourcePreview(doc);
-                              setSourceHighlight(chunkContent || source);
-                            }
-                          }}
-                        />
-                      </div>
+                                if (doc) {
+                                  setLeftPanelCollapsed(false);
+                                  setSourcePreview(doc);
+                                  setSourceHighlight(chunkContent || source);
+                                }
+                              }}
+                            />
+                          </div>
+                          {/* Blinking cursor at the end of text while streaming */}
+                          {message.isStreaming && !message.isWaitingForFirstToken && (
+                            <span className="inline-block w-0.5 h-4 ml-0.5 bg-amber-500 animate-pulse" style={{ verticalAlign: 'baseline' }} />
+                          )}
+                        </>
+                      )}
                       
-                      {/* Action Bar - Copy, Speaker, Regenerate */}
+                      {/* Action Bar - Copy, Speaker, Regenerate - Hide during streaming */}
+                      {!message.isStreaming && (
                       <div className={`flex items-center gap-1 mt-3 pt-2 border-t ${isDark ? 'border-white/5' : 'border-gray-100'}`}>
                         <button
                           onClick={() => handleCopyMessage(message.content, message.id)}
@@ -1708,13 +2098,14 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                           </button>
                         )}
                       </div>
+                      )}
                     </div>
                   )}
                 </div>
               ))}
 
-              {/* Loading indicator */}
-              {isLoading && (
+              {/* Loading indicator - only show if no streaming message */}
+              {isLoading && !messages.some(m => m.isStreaming) && (
                 <div className="flex justify-start">
                   <div className={`${theme.assistantMessage} ${theme.text} border ${theme.cardBorder} rounded-2xl px-4 py-3`}>
                     <div className="flex items-center gap-2">
@@ -1723,12 +2114,26 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                         <span className="w-2 h-2 bg-amber-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
                         <span className="w-2 h-2 bg-amber-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                       </div>
-                      <span className={theme.textMuted}>Thinking...</span>
+                      <span className={theme.textMuted}>Thinking</span>       
                     </div>
                   </div>
                 </div>
               )}
               <div ref={messagesEndRef} />
+            </div>
+          )}
+          
+          {showScrollToBottom && (
+            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-10">
+              <button
+                onClick={handleScrollToBottom}
+                className={`p-2 rounded-full shadow-lg transition-all hover:scale-110
+                  ${isDark ? 'bg-white/10 hover:bg-white/20 border border-white/20' : 'bg-white hover:bg-gray-50 border border-gray-200'}
+                  backdrop-blur-xl`}
+                title="Scroll to bottom"
+              >
+                <ChevronDown size={20} className={theme.text} strokeWidth={2} />
+              </button>
             </div>
           )}
         </div>
@@ -1762,14 +2167,25 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
               >
                 <Mic size={20} strokeWidth={2} />
               </button>
-              <button
-                onClick={handleSubmit}
-                disabled={isLoading || (!inputMessage.trim() && selectedFiles.length === 0)}
-                className={`p-2 rounded-full transition-all ${isDark ? 'bg-amber-500 text-white hover:bg-amber-400' : 'bg-amber-600 text-white hover:bg-amber-700'}
-                  disabled:opacity-50 disabled:cursor-not-allowed`}
-              >
-                <Send size={20} strokeWidth={2} />
-              </button>
+              {/* Send/Stop Button - Changes based on streaming state */}
+              {isStreaming ? (
+                <button
+                  onClick={handleStop}
+                  className={`p-2 rounded-full transition-all ${isDark ? 'bg-red-500 text-white hover:bg-red-400' : 'bg-red-600 text-white hover:bg-red-700'}`}
+                  title="Stop generating"
+                >
+                  <Square size={20} strokeWidth={2} fill="currentColor" />
+                </button>
+              ) : (
+                <button
+                  onClick={handleSubmit}
+                  disabled={isLoading || (!inputMessage.trim() && selectedFiles.length === 0)}
+                  className={`p-2 rounded-full transition-all ${isDark ? 'bg-amber-500 text-white hover:bg-amber-400' : 'bg-amber-600 text-white hover:bg-amber-700'}
+                    disabled:opacity-50 disabled:cursor-not-allowed`}
+                >
+                  <Send size={20} strokeWidth={2} />
+                </button>
+              )}
             </div>
             <p className={`text-xs text-center mt-2 ${theme.textMuted} opacity-70`}>
               DocTalk may make mistakes. Please verify important information.

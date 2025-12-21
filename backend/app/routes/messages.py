@@ -5,9 +5,9 @@ from pydantic import BaseModel
 
 from ..dependencies import get_db, get_current_user
 from ..models.db_models import ChatMessage, Conversation
-from ..utils.embeddings import EmbeddingProcessor
-from ..utils.gemini_client import GeminiClient
-from ..models.db_models import DocumentChunk
+from ..utils.embeddings import HybridRAGProcessor
+from ..utils.llm_router import get_llm_client
+from ..models.db_models import DocumentChunk, Document
 
 router = APIRouter()
 
@@ -67,29 +67,29 @@ async def edit_message(
     # If regenerate is requested and message is from user, generate new AI response
     if regenerate and message.role == "user":
         try:
-            # Get document chunks for context
-            chunks = (
-                db.query(DocumentChunk)
-                .filter(DocumentChunk.conversation_id == conversation.id)
+            # Respect active documents only (avoid deleted/disabled sources)
+            active_docs = (
+                db.query(Document)
+                .filter(Document.conversation_id == conversation.id, Document.is_active == True)
                 .all()
             )
-            
-            if not chunks:
-                raise HTTPException(status_code=400, detail="No documents in conversation")
-            
+            active_doc_ids = [doc.id for doc in active_docs]
+
+            chunk_query = db.query(DocumentChunk).filter(DocumentChunk.conversation_id == conversation.id)
+            if active_doc_ids:
+                chunk_query = chunk_query.filter(DocumentChunk.document_id.in_(active_doc_ids))
+
+            chunks = chunk_query.all()
             chunk_dicts = [
                 {
                     "content": chunk.content,
                     "metadata_json": chunk.metadata_json,
-                    "chunk_index": chunk.chunk_index
+                    "chunk_index": chunk.chunk_index,
                 }
                 for chunk in chunks
             ]
-            
-            embedding_processor = EmbeddingProcessor().load_from_chunks(chunk_dicts)
-            gemini_client = GeminiClient()
-            
-            # Get chat history up to this message
+
+            # Load chat history up to this message for context
             chat_history_records = (
                 db.query(ChatMessage)
                 .filter(
@@ -103,32 +103,33 @@ async def edit_message(
                 {"role": record.role, "content": record.content}
                 for record in chat_history_records
             ]
-            
-            # Search for relevant context
-            relevant_docs = embedding_processor.search_similar(request.content, k=15)
-            source_groups = {}
-            for doc in relevant_docs:
-                source = doc["metadata"].get("source", "Unknown")
-                source_groups.setdefault(source, []).append(doc)
-            
-            context_docs = []
-            for source, docs in source_groups.items():
-                context_docs.extend(docs[:3])
-            context_docs = context_docs[:12]
-            
+
+            hybrid_rag = HybridRAGProcessor()
+            hybrid_rag.load_documents(chunk_dicts)
+            hybrid_rag.load_chat_history(chat_history)
+
+            context_result = hybrid_rag.build_context(
+                query=request.content,
+                chat_history=chat_history,
+                doc_k=12,
+                chat_k=4,
+                recent_messages=6,
+            )
+
             formatted_context_docs = [
                 {
                     "page_content": doc["content"],
-                    "metadata": doc["metadata"]
+                    "metadata": doc["metadata"],
                 }
-                for doc in context_docs
+                for doc in context_result["document_chunks"]
             ]
-            
-            # Generate new response
-            result = await gemini_client.generate_response(
+
+            llm_client = get_llm_client(conversation.llm_mode)
+            result = await llm_client.generate_response(
                 request.content,
                 formatted_context_docs,
-                chat_history
+                context_result.get("recent_context", []),
+                context_result.get("combined_context", ""),
             )
             
             responses_for_message = (

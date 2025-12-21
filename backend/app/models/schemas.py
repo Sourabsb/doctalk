@@ -37,6 +37,9 @@ class DeleteAccountRequest(BaseModel):
 class ChatRequest(BaseModel):
     message: str
     conversation_id: int
+    regenerate: bool = False  # If true, don't create a new user message
+    edit_group_id: Optional[int] = None  # Links edited messages to original
+    is_edit: bool = False  # Indicates this is an edited message
 
 class ResponseVariant(BaseModel):
     id: int
@@ -63,6 +66,7 @@ class UploadResponse(BaseModel):
     message: str
     conversation_id: int
     processed_files: List[str]
+    llm_mode: Optional[str] = "api"
 
 class DownloadRequest(BaseModel):
     conversation_id: int
@@ -74,6 +78,7 @@ class ConversationSummary(BaseModel):
     created_at: datetime
     updated_at: datetime
     last_message: Optional[str]
+    llm_mode: Optional[str] = "api"
 
 class ChatMessageResponse(BaseModel):
     id: int
@@ -86,6 +91,7 @@ class ChatMessageResponse(BaseModel):
     version_index: Optional[int] = 1
     is_archived: Optional[bool] = False
     response_versions: Optional[List[ResponseVariant]] = None
+    edit_group_id: Optional[int] = None  # Groups edited messages together
 
 class DocumentResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -102,6 +108,7 @@ class ConversationDetailResponse(BaseModel):
     conversation: ConversationSummary
     messages: List[ChatMessageResponse]
     documents: List[DocumentResponse]
+    llm_mode: Optional[str] = None
 
 
 ChatResponse.model_rebuild()

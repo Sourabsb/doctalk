@@ -7,6 +7,7 @@ const UploadModal = ({ isOpen, onClose, onUploadSuccess, isDark }) => {
   const [dragActive, setDragActive] = useState(false)
   const [error, setError] = useState(null)
   const [isProcessing, setIsProcessing] = useState(false)
+  const [llmMode, setLlmMode] = useState('local') // 'local' | 'api'
   const fileInputRef = useRef(null)
 
   if (!isOpen) return null
@@ -44,10 +45,11 @@ const UploadModal = ({ isOpen, onClose, onUploadSuccess, isDark }) => {
     setIsProcessing(true)
     setError(null)
     try {
-      const response = await uploadFiles(files, conversationTitle.trim())
+      const response = await uploadFiles(files, conversationTitle.trim(), llmMode)
       onUploadSuccess(response.conversation_id)
       setFiles([])
       setConversationTitle('')
+      setLlmMode('local')
       onClose()
     } catch (error) {
       console.error('Upload failed:', error)
@@ -63,6 +65,7 @@ const UploadModal = ({ isOpen, onClose, onUploadSuccess, isDark }) => {
       setFiles([])
       setConversationTitle('')
       setError(null)
+      setLlmMode('local')
       onClose()
     }
   }
@@ -95,7 +98,7 @@ const UploadModal = ({ isOpen, onClose, onUploadSuccess, isDark }) => {
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-6">
+        <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
           {/* Drop Zone */}
           <div
             className={`border-2 border-dashed rounded-xl p-8 text-center transition-all ${
@@ -139,6 +142,63 @@ const UploadModal = ({ isOpen, onClose, onUploadSuccess, isDark }) => {
               </div>
               <p className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>Supported: PDF, DOCX, TXT, Images</p>
             </div>
+          </div>
+
+          {/* Choose model mode */}
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => setLlmMode('local')}
+              className={`flex items-center gap-3 p-4 rounded-xl border transition-all text-left ${
+                llmMode === 'local'
+                  ? isDark
+                    ? 'border-amber-400/70 bg-amber-500/10'
+                    : 'border-amber-400 bg-amber-50'
+                  : isDark
+                    ? 'border-white/10 bg-white/5 hover:border-amber-300/40'
+                    : 'border-amber-100 bg-white hover:border-amber-300'
+              }`}
+            >
+              <div className={`w-10 h-10 rounded-lg flex-shrink-0 flex items-center justify-center ${isDark ? 'bg-amber-500/20' : 'bg-amber-100'}`}>
+                <svg className={`w-5 h-5 ${isDark ? 'text-amber-300' : 'text-amber-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <p className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Local (Ollama)</p>
+                <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Private on-device</p>
+              </div>
+              {llmMode === 'local' && (
+                <span className={`text-lg font-bold ${isDark ? 'text-amber-300' : 'text-amber-600'}`}>✓</span>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setLlmMode('api')}
+              className={`flex items-center gap-3 p-4 rounded-xl border transition-all text-left ${
+                llmMode === 'api'
+                  ? isDark
+                    ? 'border-amber-400/70 bg-amber-500/10'
+                    : 'border-amber-400 bg-amber-50'
+                  : isDark
+                    ? 'border-white/10 bg-white/5 hover:border-amber-300/40'
+                    : 'border-amber-100 bg-white hover:border-amber-300'
+              }`}
+            >
+              <div className={`w-10 h-10 rounded-lg flex-shrink-0 flex items-center justify-center ${isDark ? 'bg-blue-500/20' : 'bg-blue-100'}`}>
+                <svg className={`w-5 h-5 ${isDark ? 'text-blue-300' : 'text-blue-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <p className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Cloud (Gemini)</p>
+                <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Faster, uses cloud</p>
+              </div>
+              {llmMode === 'api' && (
+                <span className={`text-lg font-bold ${isDark ? 'text-amber-300' : 'text-amber-600'}`}>✓</span>
+              )}
+            </button>
           </div>
 
           {/* Files List */}
@@ -186,7 +246,7 @@ const UploadModal = ({ isOpen, onClose, onUploadSuccess, isDark }) => {
               </div>
 
               {error && (
-                <div className="p-3 bg-red-500/20 border border-red-500/30 rounded-lg text-red-300 text-sm">
+                <div className="p-3 bg-red-500/20 border border-red-500/30 rounded-lg text-red-300 text-sm max-h-32 overflow-y-auto custom-scrollbar">
                   {error}
                 </div>
               )}

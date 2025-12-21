@@ -7,7 +7,7 @@ from typing import List
 from ..models.schemas import UploadResponse
 from ..utils.document_processor import DocumentProcessor
 from ..utils.embeddings import EmbeddingProcessor
-from ..config import MAX_FILE_SIZE
+from ..config import MAX_FILE_SIZE, DEFAULT_LLM_MODE
 from ..dependencies import get_db, get_current_user
 from ..models.db_models import Conversation, Document, DocumentChunk
 
@@ -17,11 +17,15 @@ router = APIRouter()
 async def upload_files(
     files: List[UploadFile] = File(...),
     title: str = Form(None),
+    llm_mode: str = Form(None),
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
     try:
         print(f"Upload request received: {len(files)} files, title: {title}")
+        chosen_mode = (llm_mode or DEFAULT_LLM_MODE or "api").lower()
+        if chosen_mode not in ("api", "local"):
+            raise HTTPException(status_code=400, detail="Invalid llm_mode. Use 'api' or 'local'.")
         processor = DocumentProcessor()
         embedding_processor = EmbeddingProcessor()
         
@@ -66,6 +70,7 @@ async def upload_files(
             conversation = Conversation(
                 user_id=current_user.id,
                 title=conversation_title,
+                llm_mode=chosen_mode,
                 created_at=datetime.utcnow(),
                 updated_at=datetime.utcnow()
             )
@@ -102,7 +107,8 @@ async def upload_files(
             return UploadResponse(
                 message="Files processed successfully",
                 conversation_id=conversation.id,
-                processed_files=processed_files
+                processed_files=processed_files,
+                llm_mode=chosen_mode
             )
         except Exception as vector_error:
             db.rollback()

@@ -17,3 +17,4 @@ itsdangerous
 sqlalchemy
 bcrypt
 PyJWT
+ollama

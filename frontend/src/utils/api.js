@@ -41,10 +41,13 @@ export const signin = async ({ email, password }) => {
   return response.data
 }
 
-export const uploadFiles = async (files, title) => {
+export const uploadFiles = async (files, title, llmMode = 'local') => {
   const formData = new FormData()
   if (title) {
     formData.append('title', title)
+  }
+  if (llmMode) {
+    formData.append('llm_mode', llmMode)
   }
   files.forEach(file => {
     formData.append('files', file)
@@ -66,6 +69,80 @@ export const sendMessage = async (conversationId, message) => {
   })
   
   return response.data
+}
+
+// Streaming chat for word-by-word responses
+export const sendMessageStream = async (conversationId, message, onToken, onMeta, onDone, onError, signal = null, regenerate = false, editOptions = null) => {
+  const token = localStorage.getItem('docTalkToken')
+  
+  try {
+    const body = {
+      conversation_id: conversationId,
+      message,
+      regenerate
+    }
+    
+    // Add edit options if provided
+    if (editOptions) {
+      body.is_edit = true
+      body.edit_group_id = editOptions.edit_group_id
+    }
+    
+    const response = await fetch(`${API_BASE_URL}/api/chat/stream`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(body),
+      signal
+    })
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+
+    while (true) {
+      const { done, value } = await reader.read()
+      
+      if (done) break
+      
+      buffer += decoder.decode(value, { stream: true })
+      
+      const lines = buffer.split('\n')
+      buffer = lines.pop() || ''
+      
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          try {
+            const data = JSON.parse(line.slice(6))
+            
+            if (data.type === 'meta') {
+              onMeta?.(data)
+            } else if (data.type === 'token') {
+              onToken?.(data.content)
+            } else if (data.type === 'done') {
+              onDone?.(data)
+            } else if (data.type === 'error') {
+              onError?.(data.message)
+            }
+          } catch (e) {
+            console.error('Failed to parse SSE data:', e)
+          }
+        }
+      }
+    }
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      // User stopped generation - don't report as error
+      return
+    }
+    onError?.(error.message)
+  }
 }
 
 export const downloadChat = async (conversationId, format = 'txt') => {
@@ -163,6 +240,11 @@ export const updateNote = async (conversationId, noteId, title, content) => {
 
 export const convertNoteToSource = async (conversationId, noteId) => {
   const response = await api.post(`/api/conversations/${conversationId}/notes/${noteId}/convert`)
+  return response.data
+}
+
+export const unconvertNoteFromSource = async (conversationId, noteId) => {
+  const response = await api.post(`/api/conversations/${conversationId}/notes/${noteId}/unconvert`)
   return response.data
 }
 

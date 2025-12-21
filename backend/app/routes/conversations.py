@@ -52,7 +52,8 @@ def list_conversations(
                 title=convo.title,
                 created_at=convo.created_at,
                 updated_at=convo.updated_at,
-                last_message=last_message
+                last_message=last_message,
+                llm_mode=getattr(convo, "llm_mode", "api")
             )
         )
     return summaries
@@ -77,7 +78,8 @@ def get_conversation(
         title=conversation.title,
         created_at=conversation.created_at,
         updated_at=conversation.updated_at,
-        last_message=conversation.messages[-1].content if conversation.messages else None
+        last_message=conversation.messages[-1].content if conversation.messages else None,
+        llm_mode=getattr(conversation, "llm_mode", "api")
     )
 
     response_groups = {}
@@ -121,7 +123,8 @@ def get_conversation(
                 reply_to_message_id=message.reply_to_message_id,
                 version_index=message.version_index,
                 is_archived=bool(getattr(message, 'is_archived', 0)),
-                response_versions=response_versions
+                response_versions=response_versions,
+                edit_group_id=getattr(message, 'edit_group_id', None)
             )
         )
 
@@ -138,7 +141,12 @@ def get_conversation(
             "has_embeddings": has_embeddings
         })
 
-    return ConversationDetailResponse(conversation=summary, messages=messages, documents=documents)
+    return ConversationDetailResponse(
+        conversation=summary,
+        messages=messages,
+        documents=documents,
+        llm_mode=getattr(conversation, "llm_mode", "api"),
+    )
 
 @router.delete("/conversations/{conversation_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_conversation(
@@ -366,6 +374,59 @@ def convert_note_to_source(
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error converting note: {str(e)}")
+
+
+@router.post("/conversations/{conversation_id}/notes/{note_id}/unconvert")
+def unconvert_note_from_source(
+    conversation_id: int,
+    note_id: int,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """Remove embeddings from a note, converting it back to a regular note.
+    This keeps the note but removes it from the searchable sources."""
+    try:
+        conversation = (
+            db.query(Conversation)
+            .filter(Conversation.id == conversation_id, Conversation.user_id == current_user.id)
+            .first()
+        )
+
+        if not conversation:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
+
+        # Get the note document
+        note_doc = (
+            db.query(Document)
+            .filter(Document.id == note_id, Document.conversation_id == conversation_id, Document.doc_type == "note")
+            .first()
+        )
+
+        if not note_doc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Note with ID {note_id} not found")
+
+        # Delete all chunks for this note
+        deleted_count = db.query(DocumentChunk).filter(DocumentChunk.document_id == note_id).delete()
+        
+        # Mark the note as no longer having embeddings
+        note_doc.has_embeddings = False
+        
+        db.commit()
+        
+        return {
+            "message": "Note unconverted from source",
+            "id": note_doc.id,
+            "filename": note_doc.filename,
+            "has_embeddings": False,
+            "chunks_deleted": deleted_count
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"ERROR in unconvert_note_from_source: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error unconverting note: {str(e)}")
 
 
 @router.patch("/conversations/{conversation_id}/documents/{document_id}/toggle")

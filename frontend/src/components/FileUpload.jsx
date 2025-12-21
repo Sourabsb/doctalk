@@ -6,7 +6,7 @@ const FileUpload = ({ onUploadSuccess, isProcessing, setIsProcessing }) => {
   const [conversationTitle, setConversationTitle] = useState('')
   const [dragActive, setDragActive] = useState(false)
   const [error, setError] = useState(null)
-  const [mode, setMode] = useState('online') // 'online' or 'offline'
+  const [mode, setMode] = useState('offline') // 'online' or 'offline'
   const fileInputRef = useRef(null)
 
   const handleDrag = (e) => {
@@ -38,11 +38,12 @@ const FileUpload = ({ onUploadSuccess, isProcessing, setIsProcessing }) => {
 
   const handleUpload = async () => {
     if (files.length === 0) return
+    const llmMode = mode === 'offline' ? 'local' : 'api'
     
     setIsProcessing(true)
     setError(null)
     try {
-      const response = await uploadFiles(files, conversationTitle.trim())
+      const response = await uploadFiles(files, conversationTitle.trim(), llmMode)
       onUploadSuccess(response.conversation_id)
       setFiles([])
       setConversationTitle('')
@@ -100,8 +101,8 @@ const FileUpload = ({ onUploadSuccess, isProcessing, setIsProcessing }) => {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                   </svg>
                   <div className="text-left">
-                    <div className="font-semibold">Online & Fast</div>
-                    <div className="text-xs opacity-80">Cloud-powered AI</div>
+                    <div className="font-semibold">Cloud API</div>
+                    <div className="text-xs opacity-80">Gemini (data leaves device)</div>
                   </div>
                 </div>
               </button>
@@ -119,8 +120,8 @@ const FileUpload = ({ onUploadSuccess, isProcessing, setIsProcessing }) => {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                   </svg>
                   <div className="text-left">
-                    <div className="font-semibold">Offline & Private</div>
-                    <div className="text-xs opacity-80">Local processing</div>
+                    <div className="font-semibold">Local (Ollama)</div>
+                    <div className="text-xs opacity-80">Private on-device</div>
                   </div>
                 </div>
               </button>
@@ -219,10 +220,10 @@ const FileUpload = ({ onUploadSuccess, isProcessing, setIsProcessing }) => {
                 
                 <button
                   onClick={handleUpload}
-                  disabled={isProcessing || mode === 'offline'}
+                  disabled={isProcessing}
                   className="w-full py-3 bg-white text-amber-600 rounded-lg font-semibold hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                  {isProcessing ? 'Processing...' : mode === 'offline' ? 'Offline Mode (Coming Soon)' : 'Start AI Analysis'}
+                  {isProcessing ? 'Processing...' : mode === 'offline' ? 'Start with Local Model' : 'Start with Cloud API'}
                 </button>
               </div>
             </div>

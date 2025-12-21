@@ -108,7 +108,8 @@ async def add_documents_to_conversation(
             return UploadResponse(
                 message=f"Added {len(processed_files)} document(s) to conversation",
                 conversation_id=conversation.id,
-                processed_files=processed_files
+                processed_files=processed_files,
+                llm_mode=getattr(conversation, "llm_mode", "api")
             )
         except Exception as vector_error:
             db.rollback()

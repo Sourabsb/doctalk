@@ -51,6 +51,8 @@ def run_migrations():
 	if "documents" in tables:
 		existing_doc_columns = {col["name"] for col in inspector.get_columns("documents")}
 		doc_statements = []
+		if "content" not in existing_doc_columns:
+			doc_statements.append("ALTER TABLE documents ADD COLUMN content TEXT")
 		if "doc_type" not in existing_doc_columns:
 			doc_statements.append("ALTER TABLE documents ADD COLUMN doc_type VARCHAR DEFAULT 'file'")
 		if "is_active" not in existing_doc_columns:
@@ -59,3 +61,16 @@ def run_migrations():
 		with engine.begin() as conn:
 			for stmt in doc_statements:
 				conn.execute(text(stmt))
+
+	# Migrate conversations table
+	if "conversations" in tables:
+		existing_convo_columns = {col["name"] for col in inspector.get_columns("conversations")}
+		convo_statements = []
+		if "llm_mode" not in existing_convo_columns:
+			convo_statements.append("ALTER TABLE conversations ADD COLUMN llm_mode VARCHAR DEFAULT 'api'")
+
+		with engine.begin() as conn:
+			for stmt in convo_statements:
+				conn.execute(text(stmt))
+			if "llm_mode" not in existing_convo_columns:
+				conn.execute(text("UPDATE conversations SET llm_mode = 'api' WHERE llm_mode IS NULL"))
