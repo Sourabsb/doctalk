@@ -192,7 +192,7 @@ const UploadModal = ({ isOpen, onClose, onUploadSuccess, isDark }) => {
                 </svg>
               </div>
               <div className="flex-1">
-                <p className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Cloud (Gemini)</p>
+                <p className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Cloud</p>
                 <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Faster, uses cloud</p>
               </div>
               {llmMode === 'api' && (

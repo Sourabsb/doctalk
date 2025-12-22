@@ -26,6 +26,8 @@ def run_migrations():
 			statements.append("ALTER TABLE chat_messages ADD COLUMN is_archived BOOLEAN DEFAULT 0")
 		if "prompt_snapshot" not in existing_columns:
 			statements.append("ALTER TABLE chat_messages ADD COLUMN prompt_snapshot TEXT")
+		if "source_chunks_json" not in existing_columns:
+			statements.append("ALTER TABLE chat_messages ADD COLUMN source_chunks_json TEXT")
 
 		with engine.begin() as conn:
 			for stmt in statements:
@@ -74,3 +76,46 @@ def run_migrations():
 				conn.execute(text(stmt))
 			if "llm_mode" not in existing_convo_columns:
 				conn.execute(text("UPDATE conversations SET llm_mode = 'api' WHERE llm_mode IS NULL"))
+
+	# Backfill: fix broken chaining where follow-up user messages were saved without reply_to_message_id.
+	# This is conservative: it only touches non-edited, version_index=1 user messages.
+	if "chat_messages" in tables:
+		try:
+			from .models.db_models import Conversation, ChatMessage
+			session = SessionLocal()
+			try:
+				conversations = session.query(Conversation.id).all()
+				for (conv_id,) in conversations:
+					msgs = (
+						session.query(ChatMessage)
+						.filter(ChatMessage.conversation_id == conv_id)
+						.order_by(ChatMessage.created_at.asc(), ChatMessage.id.asc())
+						.all()
+					)
+					last_assistant_id = None
+					for msg in msgs:
+						if msg.role == "assistant":
+							last_assistant_id = msg.id
+							continue
+						if msg.role != "user":
+							continue
+						# Only fix follow-ups: after at least one assistant exists
+						if last_assistant_id is None:
+							continue
+						# Skip anything that is likely an edit/version
+						if getattr(msg, "is_edited", 0):
+							continue
+						if getattr(msg, "version_index", 1) != 1:
+							continue
+						# If it already has a parent, do nothing
+						if msg.reply_to_message_id is not None:
+							continue
+						# If it's clearly a root (edit_group_id==id and it's the very first user), do nothing.
+						# Otherwise, attach to the most recent assistant.
+						msg.reply_to_message_id = last_assistant_id
+					session.commit()
+			finally:
+				session.close()
+		except Exception:
+			# Never block app startup on backfill.
+			pass

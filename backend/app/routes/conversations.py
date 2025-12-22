@@ -73,6 +73,37 @@ def get_conversation(
     if not conversation:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
 
+    # Fallback preview cache: source -> representative chunk text
+    source_preview = {}
+    try:
+        for chunk in (
+            db.query(DocumentChunk)
+            .filter(DocumentChunk.conversation_id == conversation.id)
+            .order_by(DocumentChunk.chunk_index.asc())
+            .all()
+        ):
+            if not chunk.metadata_json or not chunk.content:
+                continue
+            try:
+                meta = json.loads(chunk.metadata_json)
+            except Exception:
+                continue
+            src = meta.get("source")
+            if not src or src in source_preview:
+                continue
+            snippet = (chunk.content or "").strip()
+            if snippet:
+                source_preview[src] = snippet[:800]
+    except Exception:
+        # If anything goes wrong, keep previews empty rather than failing the endpoint.
+        source_preview = {}
+
+    def _fallback_source_chunks(sources_list):
+        return [
+            {"index": i + 1, "source": src, "chunk": source_preview.get(src, "")}
+            for i, src in enumerate(sources_list or [])
+        ]
+
     summary = ConversationSummary(
         id=conversation.id,
         title=conversation.title,
@@ -89,8 +120,8 @@ def get_conversation(
 
     messages = []
     for message in conversation.messages:
-        if getattr(message, "is_archived", 0):
-            continue
+        # Return ALL messages (including archived) so frontend can reconstruct full tree
+        # Frontend will handle which branch to display based on user selection
 
         response_versions = None
         if message.role == 'user':
@@ -105,6 +136,11 @@ def get_conversation(
                         version_index=variant.version_index or 1,
                         content=variant.content,
                         sources=variant.sources_json.split("||") if variant.sources_json else [],
+                        source_chunks=(
+                            json.loads(variant.source_chunks_json)
+                            if getattr(variant, 'source_chunks_json', None)
+                            else _fallback_source_chunks(variant.sources_json.split("||") if variant.sources_json else [])
+                        ),
                         is_active=not variant.is_archived,
                         created_at=variant.created_at,
                         prompt_content=variant.prompt_snapshot or message.content
@@ -118,13 +154,18 @@ def get_conversation(
                 role=message.role,
                 content=message.content,
                 sources=message.sources_json.split("||") if message.sources_json else [],
+                source_chunks=(
+                    json.loads(message.source_chunks_json)
+                    if getattr(message, 'source_chunks_json', None)
+                    else _fallback_source_chunks(message.sources_json.split("||") if message.sources_json else [])
+                ),
                 created_at=message.created_at,
                 is_edited=message.is_edited if hasattr(message, 'is_edited') else 0,
                 reply_to_message_id=message.reply_to_message_id,
                 version_index=message.version_index,
                 is_archived=bool(getattr(message, 'is_archived', 0)),
                 response_versions=response_versions,
-                edit_group_id=getattr(message, 'edit_group_id', None)
+                edit_group_id=getattr(message, 'edit_group_id', None) or message.id  # Ensure edit_group_id is always set
             )
         )
 

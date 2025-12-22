@@ -40,17 +40,21 @@ class ChatRequest(BaseModel):
     regenerate: bool = False  # If true, don't create a new user message
     edit_group_id: Optional[int] = None  # Links edited messages to original
     is_edit: bool = False  # Indicates this is an edited message
+    cloud_model: Optional[str] = None  # 'gemini' (default) or 'groq' when in cloud mode
+    parent_message_id: Optional[int] = None  # Explicit parent for branching - message to chain from
 
 class ResponseVariant(BaseModel):
     id: int
     version_index: int
     content: str
     sources: List[str]
+    source_chunks: Optional[List['SourceWithChunk']] = None
     is_active: bool
     created_at: datetime
     prompt_content: Optional[str] = None
 
 class SourceWithChunk(BaseModel):
+    index: int
     source: str
     chunk: str
 
@@ -85,6 +89,7 @@ class ChatMessageResponse(BaseModel):
     role: str
     content: str
     sources: List[str]
+    source_chunks: Optional[List[SourceWithChunk]] = None
     created_at: datetime
     is_edited: Optional[int] = 0
     reply_to_message_id: Optional[int] = None
@@ -111,4 +116,6 @@ class ConversationDetailResponse(BaseModel):
     llm_mode: Optional[str] = None
 
 
+ResponseVariant.model_rebuild()
+ChatMessageResponse.model_rebuild()
 ChatResponse.model_rebuild()

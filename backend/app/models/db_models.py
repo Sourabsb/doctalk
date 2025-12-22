@@ -70,6 +70,7 @@ class ChatMessage(Base):
     role = Column(String, nullable=False)
     content = Column(Text, nullable=False)
     sources_json = Column(Text, nullable=True)
+    source_chunks_json = Column(Text, nullable=True)
     prompt_snapshot = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

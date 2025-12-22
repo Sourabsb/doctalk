@@ -13,6 +13,71 @@ from ..database import SessionLocal
 
 router = APIRouter()
 
+
+def _get_latest_assistant_id(db: Session, conversation_id: int) -> int | None:
+    last_assistant = (
+        db.query(ChatMessage)
+        .filter(
+            ChatMessage.conversation_id == conversation_id,
+            ChatMessage.role == "assistant",
+        )
+        .order_by(ChatMessage.id.desc())
+        .first()
+    )
+    return last_assistant.id if last_assistant else None
+
+
+def _validate_parent_message_id(
+    db: Session,
+    conversation_id: int,
+    parent_message_id: int,
+) -> int:
+    parent = (
+        db.query(ChatMessage)
+        .filter(
+            ChatMessage.id == parent_message_id,
+            ChatMessage.conversation_id == conversation_id,
+        )
+        .first()
+    )
+    if not parent:
+        raise HTTPException(status_code=400, detail="Invalid parent_message_id")
+    if parent.role != "assistant":
+        raise HTTPException(status_code=400, detail="parent_message_id must refer to an assistant message")
+    return parent.id
+
+
+def _build_branch_chat_history(
+    db: Session,
+    conversation_id: int,
+    tail_assistant_id: int | None,
+    max_messages: int,
+) -> list[dict]:
+    """Build chat history by following reply_to_message_id chain backwards from an assistant.
+
+    This is the ONLY safe way to build history when conversations can branch.
+    """
+    if tail_assistant_id is None:
+        return []
+
+    history_msgs: list[ChatMessage] = []
+    current_id: int | None = tail_assistant_id
+    visited: set[int] = set()
+
+    while current_id is not None and current_id not in visited:
+        visited.add(current_id)
+        msg = db.get(ChatMessage, current_id)
+        if not msg or msg.conversation_id != conversation_id:
+            break
+        history_msgs.append(msg)
+        current_id = msg.reply_to_message_id
+
+        if len(history_msgs) >= max_messages:
+            break
+
+    history_msgs.reverse()
+    return [{"role": m.role, "content": m.content} for m in history_msgs]
+
 @router.post("/chat", response_model=ChatResponse)
 async def chat(
     chat_request: ChatRequest,
@@ -74,24 +139,67 @@ async def chat(
             for chunk in chunks
         ]
 
-    # Load chat history
-    chat_history_records = (
-        db.query(ChatMessage)
-        .filter(ChatMessage.conversation_id == conversation.id)
-        .order_by(ChatMessage.created_at.asc())
-        .all()
+    # Determine the parent message to chain from BEFORE building chat history.
+    # To prevent cross-branch corruption, require an explicit parent for follow-ups.
+    has_any_assistant = (
+        db.query(ChatMessage.id)
+        .filter(ChatMessage.conversation_id == conversation.id, ChatMessage.role == "assistant")
+        .first()
+        is not None
     )
-    chat_history = [
-        {"role": record.role, "content": record.content}
-        for record in chat_history_records
-    ]
+
+    if chat_request.parent_message_id is not None:
+        parent_reply_to = _validate_parent_message_id(db, conversation.id, chat_request.parent_message_id)
+    else:
+        if has_any_assistant and (not chat_request.is_edit) and (not chat_request.regenerate):
+            raise HTTPException(
+                status_code=400,
+                detail="parent_message_id is required for follow-up messages to preserve branching",
+            )
+        parent_reply_to = _get_latest_assistant_id(db, conversation.id)
+
+    # Determine edit_group_id/version_index, and for edits force the same parent as the original.
+    if chat_request.is_edit and chat_request.edit_group_id is not None:
+        original_message = (
+            db.query(ChatMessage)
+            .filter(
+                ChatMessage.id == chat_request.edit_group_id,
+                ChatMessage.conversation_id == conversation.id,
+                ChatMessage.role == "user",
+            )
+            .first()
+        )
+        if not original_message:
+            edit_group_id = None
+            version_index = 1
+        else:
+            edit_group_id = original_message.edit_group_id or original_message.id
+            existing_versions = (
+                db.query(ChatMessage)
+                .filter(
+                    ChatMessage.conversation_id == conversation.id,
+                    ChatMessage.edit_group_id == edit_group_id,
+                    ChatMessage.role == "user",
+                )
+                .count()
+            )
+            version_index = existing_versions + 1
+            parent_reply_to = original_message.reply_to_message_id
+    else:
+        edit_group_id = None
+        version_index = 1
+
+    # Load chat history ONLY from the active branch.
+    # Do not include sibling branches in context.
+    max_history = 10 if conversation.llm_mode == "local" else 50
+    chat_history = _build_branch_chat_history(db, conversation.id, parent_reply_to, max_history)
 
     # Initialize Hybrid RAG Processor
     hybrid_rag = HybridRAGProcessor()
     hybrid_rag.load_documents(chunk_dicts)
     hybrid_rag.load_chat_history(chat_history)
 
-    llm_client = get_llm_client(conversation.llm_mode)
+    llm_client = get_llm_client(conversation.llm_mode, chat_request.cloud_model)
 
     is_summary_request = any(word in chat_request.message.lower() for word in [
         'summarize', 'summary', 'summarise', 'sumary', 'brief',
@@ -145,16 +253,25 @@ async def chat(
     user_message = ChatMessage(
         conversation_id=conversation.id,
         role="user",
-        content=chat_request.message
+        content=chat_request.message,
+        reply_to_message_id=parent_reply_to,
+        edit_group_id=edit_group_id,
+        version_index=version_index,
+        is_edited=1 if (chat_request.is_edit and edit_group_id is not None and version_index > 1) else 0,
     )
     db.add(user_message)
     db.flush()
+    
+    # For new messages, set edit_group_id to its own ID
+    if edit_group_id is None:
+        user_message.edit_group_id = user_message.id
 
     assistant_message = ChatMessage(
         conversation_id=conversation.id,
         role="assistant",
         content=result["response"],
         sources_json="||".join(result["sources"]) if result["sources"] else None,
+        source_chunks_json=json.dumps(result.get("source_chunks", [])) if result.get("source_chunks") else None,
         prompt_snapshot=chat_request.message,
         reply_to_message_id=user_message.id,
         version_index=1,
@@ -172,6 +289,7 @@ async def chat(
         version_index=assistant_message.version_index,
         content=assistant_message.content,
         sources=result["sources"],
+        source_chunks=result.get("source_chunks", []),
         is_active=True,
         created_at=assistant_message.created_at,
         prompt_content=chat_request.message
@@ -195,6 +313,7 @@ async def chat(
         role=assistant_message.role,
         content=assistant_message.content,
         sources=result["sources"],
+        source_chunks=result.get("source_chunks", []),
         created_at=assistant_message.created_at,
         is_edited=assistant_message.is_edited,
         reply_to_message_id=assistant_message.reply_to_message_id,
@@ -269,34 +388,67 @@ async def chat_stream(
         for chunk in chunks
     ] if chunks else []
 
-    # Load chat history - limit for local mode to avoid context overflow
+
+    # Build chat history from the active branch only.
     max_history = 10 if conversation.llm_mode == "local" else 50
-    chat_history_records = (
-        db.query(ChatMessage)
-        .filter(ChatMessage.conversation_id == conversation.id)
-        .order_by(ChatMessage.created_at.desc())
-        .limit(max_history)
-        .all()
-    )
-    chat_history_records.reverse()  # Back to chronological order
-    chat_history = [
-        {"role": record.role, "content": record.content}
-        for record in chat_history_records
-    ]
-
-    # Initialize Hybrid RAG Processor
-    hybrid_rag = HybridRAGProcessor()
-    hybrid_rag.load_documents(chunk_dicts)
-    hybrid_rag.load_chat_history(chat_history)
-
-    llm_client = get_llm_client(conversation.llm_mode)
 
     # Build context - reduce for local mode
     if conversation.llm_mode == "local":
         doc_k, chat_k, recent_msgs = 5, 2, 4  # Much smaller context for local
     else:
         doc_k, chat_k, recent_msgs = 8, 3, 8
-        
+
+    # Capture conversation ID before session closes
+    conv_id = conversation.id
+    
+    # Only save user message if not regenerating
+    user_message_id = None
+    edit_group_id = None
+    parent_reply_to = None
+
+    # Determine the parent/tail BEFORE building any context.
+    if chat_request.regenerate:
+        # Existing behavior: regenerate the latest user turn by default.
+        # If the client provides an explicit parent_message_id, prefer it.
+        last_user_msg = (
+            db.query(ChatMessage)
+            .filter(ChatMessage.conversation_id == conv_id, ChatMessage.role == "user")
+            .order_by(ChatMessage.id.desc())
+            .first()
+        )
+        if last_user_msg:
+            user_message_id = last_user_msg.id
+            parent_reply_to = last_user_msg.reply_to_message_id
+
+        if chat_request.parent_message_id is not None:
+            parent_reply_to = _validate_parent_message_id(db, conv_id, chat_request.parent_message_id)
+    else:
+        # Determine the parent message to chain from.
+        # Priority: explicit parent_message_id (validated) > latest assistant in this conversation.
+        has_any_assistant = (
+            db.query(ChatMessage.id)
+            .filter(ChatMessage.conversation_id == conv_id, ChatMessage.role == "assistant")
+            .first()
+            is not None
+        )
+
+        if chat_request.parent_message_id is not None:
+            parent_reply_to = _validate_parent_message_id(db, conv_id, chat_request.parent_message_id)
+        else:
+            if has_any_assistant and (not chat_request.is_edit):
+                raise HTTPException(
+                    status_code=400,
+                    detail="parent_message_id is required for follow-up messages to preserve branching",
+                )
+            parent_reply_to = _get_latest_assistant_id(db, conv_id)
+
+    chat_history = _build_branch_chat_history(db, conv_id, parent_reply_to, max_history)
+
+    # Initialize RAG processor and build context
+    hybrid_rag = HybridRAGProcessor()
+    hybrid_rag.load_documents(chunk_dicts)
+    hybrid_rag.load_chat_history(chat_history)
+
     context_result = hybrid_rag.build_context(
         query=chat_request.message,
         chat_history=chat_history,
@@ -329,20 +481,30 @@ async def chat_stream(
             "chunk": doc["content"][:800]
         })
 
-    # Capture conversation ID before session closes
-    conv_id = conversation.id
-    
-    # Only save user message if not regenerating
-    user_message_id = None
-    edit_group_id = None
+    llm_client = get_llm_client(conversation.llm_mode, chat_request.cloud_model)
     
     if not chat_request.regenerate:
-        # Determine edit_group_id for edited messages
-        if chat_request.is_edit and chat_request.edit_group_id:
-            # This is an edit of an existing message, use provided group ID
-            edit_group_id = chat_request.edit_group_id
-            # Count existing edits in this group to set version_index
-            existing_edits_count = (
+        # Determine edit_group_id and version_index
+        if chat_request.is_edit and chat_request.edit_group_id is not None:
+            # This is an edit - create new version in the edit group
+            # DO NOT archive the old version - keep all branches active
+            original_message = (
+                db.query(ChatMessage)
+                .filter(
+                    ChatMessage.id == chat_request.edit_group_id,
+                    ChatMessage.conversation_id == conv_id,
+                    ChatMessage.role == "user",
+                )
+                .first()
+            )
+            if not original_message:
+                edit_group_id = None
+                version_index = 1
+            else:
+                edit_group_id = original_message.edit_group_id or original_message.id
+            
+            # Count existing versions in this group
+            existing_versions = (
                 db.query(ChatMessage)
                 .filter(
                     ChatMessage.conversation_id == conv_id,
@@ -351,11 +513,13 @@ async def chat_stream(
                 )
                 .count()
             )
-            version_index = existing_edits_count + 1
+            version_index = existing_versions + 1
+            
+            # For edits, the parent should be the same as the original message's parent
+            parent_reply_to = original_message.reply_to_message_id
         else:
-            # New message - generate new edit_group_id
-            # Use a simple approach: make it the same as the message ID after save
-            edit_group_id = None  # Will be set after message is created
+            # New message - will set edit_group_id to its own ID after creation
+            edit_group_id = None
             version_index = 1
         
         user_message = ChatMessage(
@@ -363,7 +527,9 @@ async def chat_stream(
             role="user",
             content=chat_request.message,
             edit_group_id=edit_group_id,
-            version_index=version_index
+            version_index=version_index,
+            reply_to_message_id=parent_reply_to,
+            is_edited=1 if (chat_request.is_edit and edit_group_id is not None and version_index > 1) else 0,
         )
         db.add(user_message)
         db.flush()
@@ -375,19 +541,7 @@ async def chat_stream(
             edit_group_id = user_message.id
         
         db.commit()
-    else:
-        # For regenerate, find the last user message to link to
-        last_user_msg = (
-            db.query(ChatMessage)
-            .filter(
-                ChatMessage.conversation_id == conv_id,
-                ChatMessage.role == "user"
-            )
-            .order_by(ChatMessage.created_at.desc())
-            .first()
-        )
-        if last_user_msg:
-            user_message_id = last_user_msg.id
+
 
     async def generate_stream():
         full_response = ""
@@ -436,6 +590,7 @@ async def chat_stream(
                 role="assistant",
                 content=full_response,
                 sources_json="||".join(sources) if sources else None,
+                source_chunks_json=json.dumps(source_chunks) if source_chunks else None,
                 prompt_snapshot=chat_request.message,
                 reply_to_message_id=user_message_id,
                 version_index=1,

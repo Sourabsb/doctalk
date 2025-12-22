@@ -62,24 +62,32 @@ export const uploadFiles = async (files, title, llmMode = 'local') => {
   return response.data
 }
 
-export const sendMessage = async (conversationId, message) => {
+export const sendMessage = async (conversationId, message, cloudModel = null) => {
   const response = await api.post('/api/chat', {
     conversation_id: conversationId,
     message,
+    cloud_model: cloudModel,
   })
   
   return response.data
 }
 
 // Streaming chat for word-by-word responses
-export const sendMessageStream = async (conversationId, message, onToken, onMeta, onDone, onError, signal = null, regenerate = false, editOptions = null) => {
+export const sendMessageStream = async (conversationId, message, onToken, onMeta, onDone, onError, signal = null, regenerate = false, editOptions = null, cloudModel = null, parentMessageId = undefined) => {
   const token = localStorage.getItem('docTalkToken')
   
   try {
     const body = {
       conversation_id: conversationId,
       message,
-      regenerate
+      regenerate,
+      cloud_model: cloudModel,
+    }
+    
+    // Add parent message ID for explicit branching.
+    // Important: allow explicit null to represent a root message.
+    if (parentMessageId !== undefined) {
+      body.parent_message_id = parentMessageId
     }
     
     // Add edit options if provided
