@@ -4,6 +4,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
 const api = axios.create({
   baseURL: API_BASE_URL,
+  timeout: 300000, // 5 minutes timeout for slow local LLM operations
 })
 
 api.interceptors.request.use((config) => {
@@ -58,7 +59,7 @@ export const uploadFiles = async (files, title, llmMode = 'local') => {
       'Content-Type': 'multipart/form-data',
     },
   })
-  
+
   return response.data
 }
 
@@ -68,14 +69,14 @@ export const sendMessage = async (conversationId, message, cloudModel = null) =>
     message,
     cloud_model: cloudModel,
   })
-  
+
   return response.data
 }
 
 // Streaming chat for word-by-word responses
 export const sendMessageStream = async (conversationId, message, onToken, onMeta, onDone, onError, signal = null, regenerate = false, editOptions = null, cloudModel = null, parentMessageId = undefined) => {
   const token = localStorage.getItem('docTalkToken')
-  
+
   try {
     const body = {
       conversation_id: conversationId,
@@ -83,19 +84,19 @@ export const sendMessageStream = async (conversationId, message, onToken, onMeta
       regenerate,
       cloud_model: cloudModel,
     }
-    
+
     // Add parent message ID for explicit branching.
     // Important: allow explicit null to represent a root message.
     if (parentMessageId !== undefined) {
       body.parent_message_id = parentMessageId
     }
-    
+
     // Add edit options if provided
     if (editOptions) {
       body.is_edit = true
       body.edit_group_id = editOptions.edit_group_id
     }
-    
+
     const response = await fetch(`${API_BASE_URL}/api/chat/stream`, {
       method: 'POST',
       headers: {
@@ -116,19 +117,19 @@ export const sendMessageStream = async (conversationId, message, onToken, onMeta
 
     while (true) {
       const { done, value } = await reader.read()
-      
+
       if (done) break
-      
+
       buffer += decoder.decode(value, { stream: true })
-      
+
       const lines = buffer.split('\n')
       buffer = lines.pop() || ''
-      
+
       for (const line of lines) {
         if (line.startsWith('data: ')) {
           try {
             const data = JSON.parse(line.slice(6))
-            
+
             if (data.type === 'meta') {
               onMeta?.(data)
             } else if (data.type === 'token') {
@@ -160,7 +161,7 @@ export const downloadChat = async (conversationId, format = 'txt') => {
   }, {
     responseType: 'blob',
   })
-  
+
   const url = window.URL.createObjectURL(new Blob([response.data]))
   const link = document.createElement('a')
   link.href = url
@@ -196,12 +197,12 @@ export const addDocumentsToConversation = async (conversationId, files) => {
       'Content-Type': 'multipart/form-data',
     },
   })
-  
+
   return response.data
 }
 
 export const editMessage = async (messageId, content, regenerate = false) => {
-  const response = await api.put(`/api/messages/${messageId}`, 
+  const response = await api.put(`/api/messages/${messageId}`,
     { content },
     { params: { regenerate } }
   )
@@ -260,3 +261,43 @@ export const toggleDocument = async (conversationId, documentId, isActive) => {
   const response = await api.patch(`/api/conversations/${conversationId}/documents/${documentId}/toggle`, { is_active: isActive })
   return response.data
 }
+
+export const getFlashcards = async (conversationId) => {
+  const response = await api.get(`/api/conversations/${conversationId}/flashcards`)
+  return response.data
+}
+
+export const generateFlashcards = async (conversationId, cloudModel = null) => {
+  const token = localStorage.getItem('docTalkToken');
+  const API_BASE_URL = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8000`;
+
+  console.log('[Flashcards] Starting generation for conversation:', conversationId, 'model:', cloudModel, 'API:', API_BASE_URL);
+
+  const response = await fetch(`${API_BASE_URL}/api/conversations/${conversationId}/flashcards/generate`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify({ cloud_model: cloudModel })
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    console.error('[Flashcards] Generation failed:', errorData);
+    throw new Error(errorData.detail || `HTTP error ${response.status}`);
+  }
+
+  const data = await response.json();
+  console.log('[Flashcards] Generation complete, cards:', data?.flashcards?.length);
+  return data;
+}
+
+export const deleteFlashcard = async (conversationId, flashcardId) => {
+  await api.delete(`/api/conversations/${conversationId}/flashcards/${flashcardId}`)
+}
+
+export const deleteAllFlashcards = async (conversationId) => {
+  await api.delete(`/api/conversations/${conversationId}/flashcards`)
+}
+

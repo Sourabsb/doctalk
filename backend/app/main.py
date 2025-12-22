@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import datetime
-from .routes import upload, chat, download, auth, conversations, add_document, messages
+from .routes import upload, chat, download, auth, conversations, add_document, messages, flashcards
 from .config import GEMINI_API_KEY, AZURE_VISION_ENDPOINT, AZURE_VISION_KEY
 from .database import Base, engine, run_migrations
 
@@ -30,6 +30,7 @@ app.include_router(chat.router, prefix="/api")
 app.include_router(download.router, prefix="/api")
 app.include_router(conversations.router, prefix="/api")
 app.include_router(messages.router, prefix="/api")
+app.include_router(flashcards.router, prefix="/api")
 
 @app.get("/")
 async def root():

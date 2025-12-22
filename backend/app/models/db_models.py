@@ -33,6 +33,7 @@ class Conversation(Base):
         order_by="ChatMessage.created_at"
     )
     chunks = relationship("DocumentChunk", back_populates="conversation", cascade="all, delete-orphan")
+    flashcards = relationship("Flashcard", back_populates="conversation", cascade="all, delete-orphan")
 
 class Document(Base):
     __tablename__ = "documents"
@@ -81,3 +82,17 @@ class ChatMessage(Base):
     edit_group_id = Column(Integer, nullable=True, index=True)  # Groups edited versions together
 
     conversation = relationship("Conversation", back_populates="messages")
+
+
+class Flashcard(Base):
+    __tablename__ = "flashcards"
+
+    id = Column(Integer, primary_key=True, index=True)
+    conversation_id = Column(Integer, ForeignKey("conversations.id"), nullable=False, index=True)
+    front = Column(Text, nullable=False)
+    back = Column(Text, nullable=False)
+    order_index = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    conversation = relationship("Conversation", back_populates="flashcards")
+

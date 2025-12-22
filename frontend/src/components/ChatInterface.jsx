@@ -10,7 +10,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { getConversation, sendMessage, sendMessageStream, uploadFiles, addDocumentsToConversation, editMessage, deleteMessage as deleteMessageApi, deleteDocument, createNote, updateNote, convertNoteToSource, unconvertNoteFromSource, toggleDocument } from '../utils/api';
+import { getConversation, sendMessage, sendMessageStream, uploadFiles, addDocumentsToConversation, editMessage, deleteMessage as deleteMessageApi, deleteDocument, createNote, updateNote, convertNoteToSource, unconvertNoteFromSource, toggleDocument, getFlashcards, generateFlashcards, deleteFlashcard } from '../utils/api';
 
 // Resizable Panel Component
 const ResizablePanel = ({ children, width, minWidth, maxWidth, onResize, side, isDark, collapsed }) => {
@@ -464,12 +464,24 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
   const [processingDocIds, setProcessingDocIds] = useState([]);
   const noteEditorRef = useRef(null);
 
+  // Flashcard states
+  const [flashcards, setFlashcards] = useState([]);
+  const [flashcardsLoading, setFlashcardsLoading] = useState(false);
+  const [showFlashcards, setShowFlashcards] = useState(false);
+  const [currentCardIndex, setCurrentCardIndex] = useState(0);
+  const [showAnswer, setShowAnswer] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
+
   // Refs
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
   const fileInputRef = useRef(null);
   const textareaRef = useRef(null);
 
+  // Simple textarea - no complex auto-resize, just track if we have content
+  useEffect(() => {
+    setIsExpanded(inputMessage.includes('\n') || inputMessage.length > 80);
+  }, [inputMessage]);
   // Theme colors - matching landing page glass effects
   const theme = {
     bg: isDark ? 'bg-transparent' : 'bg-transparent',
@@ -809,6 +821,16 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
         setMessages(normalizedMessages);
         setActiveParentId(lastAssistantId);
       }
+
+      // Load flashcards
+      try {
+        const flashcardsData = await getFlashcards(conversationId);
+        if (flashcardsData.flashcards && flashcardsData.flashcards.length > 0) {
+          setFlashcards(flashcardsData.flashcards);
+        }
+      } catch (e) {
+        // Flashcards not available, ignore
+      }
     } catch (error) {
       console.error('Error loading conversation:', error);
     }
@@ -894,6 +916,88 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
         }
         return newMessages;
       });
+    }
+  };
+
+  // Flashcard handlers
+  const flashcardGenRef = useRef(false);
+
+  const handleGenerateFlashcards = async () => {
+    if (!conversationId || flashcardGenRef.current) return;
+
+    flashcardGenRef.current = true;
+    setFlashcardsLoading(true);
+    setShowFlashcards(true);
+
+    try {
+      const selectedCloudModel = currentLlmMode === 'api' ? cloudModel : null;
+      console.log('[Flashcards] Generating with mode:', currentLlmMode, 'model:', selectedCloudModel);
+      const result = await generateFlashcards(conversationId, selectedCloudModel);
+      if (result.flashcards) {
+        setFlashcards(result.flashcards);
+        // Reset card view state when new cards are generated
+        setCurrentCardIndex(0);
+        setShowAnswer(false);
+      }
+    } catch (error) {
+      console.error('Error generating flashcards:', error);
+      alert(`Failed to generate flashcards: ${error.message}`);
+    } finally {
+      flashcardGenRef.current = false;
+      setFlashcardsLoading(false);
+    }
+  };
+
+  const handlePrevCard = () => {
+    if (currentCardIndex > 0) {
+      setCurrentCardIndex(prev => prev - 1);
+      setShowAnswer(false);
+    }
+  };
+
+  const handleNextCard = () => {
+    if (currentCardIndex < flashcards.length - 1) {
+      setCurrentCardIndex(prev => prev + 1);
+      setShowAnswer(false);
+    }
+  };
+
+  const handleExplainCard = (cardFront) => {
+    if (!cardFront) return;
+    setShowFlashcards(false);
+    setInputMessage(`Explain this in detail: ${cardFront}`);
+    textareaRef.current?.focus();
+  };
+
+  const handleCloseFlashcards = () => {
+    setShowFlashcards(false);
+    setCurrentCardIndex(0);
+    setShowAnswer(false);
+  };
+
+  const handleDeleteFlashcard = async (flashcardId) => {
+    if (!conversationId) return;
+    try {
+      await deleteFlashcard(conversationId, flashcardId);
+      setFlashcards(prev => {
+        const newCards = prev.filter(fc => fc.id !== flashcardId);
+        if (currentCardIndex >= newCards.length && newCards.length > 0) {
+          setCurrentCardIndex(newCards.length - 1);
+        }
+        return newCards;
+      });
+    } catch (error) {
+      console.error('Error deleting flashcard:', error);
+    }
+  };
+
+  const handleStudioToolClick = (toolLabel) => {
+    if (toolLabel === 'Flashcards') {
+      if (flashcards.length > 0) {
+        setShowFlashcards(true);
+      } else {
+        handleGenerateFlashcards();
+      }
     }
   };
 
@@ -1156,13 +1260,8 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
     }
   };
 
-  // Auto-resize textarea
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`;
-    }
-  }, [inputMessage]);
+  // NOTE: Textarea resize is handled in the useEffect near line 481
+  // Do not add duplicate resize logic here
 
   // Close note menu on outside click
   useEffect(() => {
@@ -2035,8 +2134,8 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                           }}
                           disabled={doc.isProcessing || processingDocIds.includes(doc.id)}
                           className={`flex-shrink-0 w-4 h-4 rounded border-2 flex items-center justify-center transition-all ${doc.is_active !== false
-                              ? 'bg-amber-500 border-amber-500'
-                              : isDark ? 'border-gray-600 bg-transparent' : 'border-gray-300 bg-transparent'
+                            ? 'bg-amber-500 border-amber-500'
+                            : isDark ? 'border-gray-600 bg-transparent' : 'border-gray-300 bg-transparent'
                             } ${doc.isProcessing || processingDocIds.includes(doc.id) ? 'opacity-50 cursor-not-allowed' : ''}`}
                           title={doc.is_active !== false ? 'Disable for queries' : 'Enable for queries'}
                         >
@@ -2154,7 +2253,7 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
       {/* Middle Panel - Chat */}
       <div className={`flex-1 flex flex-col min-w-0 relative z-10 ${theme.panelBg} rounded-2xl overflow-visible`}>
         {/* Chat Header */}
-        <div className={`flex items-center justify-between px-5 py-3 border-b ${theme.panelBorder} backdrop-blur-xl`}>
+        <div className={`relative z-30 flex items-center justify-between px-5 py-3 border-b ${theme.panelBorder} backdrop-blur-xl`}>
           <div className="flex items-center gap-2.5">
             <div className={`p-1.5 rounded-xl ${isDark ? 'bg-amber-500/20' : 'bg-amber-100'}`}>
               <MessageSquare size={16} className="text-amber-600" strokeWidth={2} />
@@ -2183,28 +2282,88 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
               </button>
             )}
           </div>
-          {/* LLM Mode Badge */}
-          <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${currentLlmMode === 'local'
+
+          {/* Right Header Controls */}
+          <div className="flex items-center gap-2">
+            {/* Model Selector - Moved from Input Area */}
+            {currentLlmMode === 'api' && (
+              <div
+                className="relative"
+                onBlur={() => setTimeout(() => setShowModelMenu(false), 120)}
+              >
+                <button
+                  type="button"
+                  onClick={() => setShowModelMenu((open) => !open)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all border
+                    ${isDark
+                      ? 'bg-white/10 text-gray-100 border-white/15 hover:bg-white/15'
+                      : 'bg-amber-100 text-amber-900 border-amber-200 hover:bg-amber-100'}
+                  `}
+                >
+                  <span>{cloudModel === 'groq' ? 'Groq' : 'Gemini'}</span>
+                  <ChevronDown size={12} className={isDark ? 'text-gray-200' : 'text-amber-900'} strokeWidth={2} />
+                </button>
+                {showModelMenu && (
+                  <div
+                    className={`absolute top-full right-0 mt-2 min-w-[160px] rounded-2xl shadow-2xl border overflow-hidden z-[100]
+                      ${isDark ? 'bg-[#1a1b1e] border-white/10' : 'bg-white border-amber-100'}`}
+                  >
+                    {[
+                      { value: 'gemini', label: 'Gemini' },
+                      { value: 'groq', label: 'Groq' },
+                    ].map(({ value, label }) => {
+                      const isActive = cloudModel === value;
+                      return (
+                        <button
+                          key={value}
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            handleCloudModelChange(value);
+                            setShowModelMenu(false);
+                          }}
+                          className={`w-full text-left px-3 py-2 text-xs font-medium transition-colors flex items-center justify-between
+                            ${isDark
+                              ? isActive ? 'bg-white/10 text-white' : 'text-gray-200 hover:bg-white/5'
+                              : isActive ? 'bg-amber-50 text-amber-900' : 'text-gray-800 hover:bg-amber-50'}
+                          `}
+                        >
+                          <span>{label}</span>
+                          {isActive && <span className={`text-[10px] ${isDark ? 'text-amber-300' : 'text-amber-600'}`}>Active</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* LLM Mode Badge */}
+            <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${currentLlmMode === 'local'
               ? isDark ? 'bg-amber-500/20 text-amber-300' : 'bg-amber-100 text-amber-700'
               : isDark ? 'bg-blue-500/20 text-blue-300' : 'bg-blue-100 text-blue-700'
-            }`}>
-            {currentLlmMode === 'local' ? (
-              <>
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                </svg>
-                <span>Local</span>
-              </>
-            ) : (
-              <>
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
-                </svg>
-                <span>Cloud</span>
-              </>
-            )}
+              }`}>
+              {currentLlmMode === 'local' ? (
+                <>
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                  <span>Local</span>
+                </>
+              ) : (
+                <>
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
+                  </svg>
+                  <span>Cloud</span>
+                </>
+              )}
+            </div>
           </div>
         </div>
+
+
+
 
         {/* Messages Area */}
         <div
@@ -2213,366 +2372,343 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
           className="flex-1 overflow-y-auto px-4 py-6 relative z-10"
           style={{ overflowX: 'visible' }}
         >
-          {messages.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center">
-              <div className={`w-14 h-14 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center mb-5 shadow-lg ${isDark ? 'shadow-amber-500/20' : 'shadow-amber-500/30'}`}>
-                <Sparkles size={26} className="text-white" strokeWidth={2} />
+          {
+            messages.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center">
+                <div className={`w-14 h-14 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center mb-5 shadow-lg ${isDark ? 'shadow-amber-500/20' : 'shadow-amber-500/30'}`}>
+                  <Sparkles size={26} className="text-white" strokeWidth={2} />
+                </div>
+                <h2 className={`text-lg font-semibold mb-2 ${theme.text}`}>How can I help you today?</h2>
+                <p className={`text-center max-w-sm text-sm ${theme.textMuted}`}>
+                  Ask me anything about your documents. I can help you analyze, summarize, and find information.
+                </p>
               </div>
-              <h2 className={`text-lg font-semibold mb-2 ${theme.text}`}>How can I help you today?</h2>
-              <p className={`text-center max-w-sm text-sm ${theme.textMuted}`}>
-                Ask me anything about your documents. I can help you analyze, summarize, and find information.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-4 max-w-3xl mx-auto relative z-20" style={{ overflow: 'visible' }}>
-              {messages.map((message, msgIndex) => (
-                <div
-                  key={message.id}
-                  className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                  style={{ overflow: 'visible' }}
-                >
-                  {message.role === 'user' ? (
-                    /* User Message - ChatGPT style with edit on hover */
-                    <div className="relative group max-w-[85%]">
-                      {editingMessageId === message.id ? (
-                        /* Edit Mode */
-                        <div className={`rounded-xl px-4 py-3 ${theme.userMessage} text-white`}>
-                          <textarea
-                            value={editContent}
-                            onChange={(e) => setEditContent(e.target.value)}
-                            className={`w-full p-2.5 rounded-lg resize-none text-sm bg-white/10 text-white placeholder-white/50 border border-white/20 focus:outline-none focus:ring-2 focus:ring-white/30`}
-                            rows={3}
-                            autoFocus
-                          />
-                          <div className="flex gap-2 justify-end mt-2">
-                            <button
-                              onClick={cancelEdit}
-                              className="px-3 py-1.5 text-sm rounded-lg bg-white/10 hover:bg-white/20 text-white"
-                            >
-                              Cancel
-                            </button>
-                            <button
-                              onClick={() => handleEditAndRegenerate(message.id)}
-                              className="px-3 py-1.5 text-sm rounded-lg bg-white text-amber-600 hover:bg-white/90 font-medium"
-                            >
-                              Save & Submit
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        /* Display Mode */
-                        <div className={`rounded-xl px-4 py-3 ${theme.userMessage} text-white shadow-sm`}>
-                          <p className="whitespace-pre-wrap">{message.content}</p>
-
-                          {/* Edit History Navigation - Compact like ChatGPT */}
-                          {message.editHistory && message.editHistory.length > 1 && (
-                            <div className="flex items-center justify-end gap-1 mt-2 pt-1.5 border-t border-white/20">
+            ) : (
+              <div className="space-y-4 max-w-3xl mx-auto relative z-20" style={{ overflow: 'visible' }}>
+                {messages.map((message, msgIndex) => (
+                  <div
+                    key={message.id}
+                    className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                    style={{ overflow: 'visible' }}
+                  >
+                    {message.role === 'user' ? (
+                      /* User Message - ChatGPT style with edit on hover */
+                      <div className="relative group max-w-[85%]">
+                        {editingMessageId === message.id ? (
+                          /* Edit Mode */
+                          <div className={`rounded-xl px-4 py-3 ${theme.userMessage} text-white`}>
+                            <textarea
+                              value={editContent}
+                              onChange={(e) => setEditContent(e.target.value)}
+                              className={`w-full p-2.5 rounded-lg resize-none text-sm bg-white/10 text-white placeholder-white/50 border border-white/20 focus:outline-none focus:ring-2 focus:ring-white/30`}
+                              rows={3}
+                              autoFocus
+                            />
+                            <div className="flex gap-2 justify-end mt-2">
                               <button
-                                onClick={(e) => { e.stopPropagation(); navigateEditHistory(message.id, 'prev'); }}
-                                disabled={(message.editIndex ?? message.editHistory.length - 1) === 0}
-                                className="p-0.5 rounded hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed"
+                                onClick={cancelEdit}
+                                className="px-3 py-1.5 text-sm rounded-lg bg-white/10 hover:bg-white/20 text-white"
                               >
-                                <ChevronLeft size={12} />
+                                Cancel
                               </button>
-                              <span className="text-[10px] opacity-70 min-w-[24px] text-center">
-                                {(message.editIndex ?? message.editHistory.length - 1) + 1}/{message.editHistory.length}
-                              </span>
                               <button
-                                onClick={(e) => { e.stopPropagation(); navigateEditHistory(message.id, 'next'); }}
-                                disabled={(message.editIndex ?? message.editHistory.length - 1) === message.editHistory.length - 1}
-                                className="p-0.5 rounded hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed"
+                                onClick={() => handleEditAndRegenerate(message.id)}
+                                className="px-3 py-1.5 text-sm rounded-lg bg-white text-amber-600 hover:bg-white/90 font-medium"
                               >
-                                <ChevronRight size={12} />
+                                Save & Submit
                               </button>
                             </div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Edit Icon on Hover - ChatGPT style */}
-                      {editingMessageId !== message.id && (
-                        <button
-                          onClick={() => startEditing(message)}
-                          className="absolute -left-10 top-1/2 -translate-y-1/2 p-1.5 rounded-md opacity-0 group-hover:opacity-100 transition-all hover:bg-white/10"
-                          title="Edit message"
-                        >
-                          <Edit2 size={14} className={theme.textMuted} strokeWidth={2} />
-                        </button>
-                      )}
-                    </div>
-                  ) : (
-                    /* AI Response - New design with copy, speaker, inline citations */
-                    <div className={`relative max-w-[85%] rounded-xl px-4 py-3 ${theme.assistantMessage} ${theme.text} border ${theme.cardBorder} shadow-sm ${message.isError ? 'border-red-500/50 bg-red-500/10' : ''}`} style={{ overflow: 'visible' }}>
-                      {/* Show "Thinking..." when waiting for first token */}
-                      {message.isWaitingForFirstToken ? (
-                        <div className="flex items-center gap-2">
-                          <div className="flex gap-1">
-                            <span className="w-2 h-2 bg-amber-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                            <span className="w-2 h-2 bg-amber-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                            <span className="w-2 h-2 bg-amber-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                           </div>
-                          <span className={theme.textMuted}>Thinking...</span>
-                        </div>
-                      ) : (
-                        <>
-                          <div className={`prose prose-sm max-w-none ${isDark ? 'prose-invert' : ''}`} style={{ overflow: 'visible' }}>
-                            <MarkdownRenderer
-                              content={message.content}
-                              isDark={isDark}
-                              sources={message.sources || []}
-                              sourceChunks={message.sourceChunks || []}
-                              leftPanelCollapsed={leftPanelCollapsed}
-                              onCitationClick={(source, chunkContent) => {
-                                const doc = documents.find(d => d.filename === source || d.filename?.includes(source.split('_page_')[0]));
-                                if (doc) {
-                                  setLeftPanelCollapsed(false);
-                                  setSourcePreview(doc);
-                                  setSourceHighlight(chunkContent || source);
-                                }
-                              }}
-                            />
-                          </div>
-                          {/* Blinking cursor at the end of text while streaming */}
-                          {message.isStreaming && !message.isWaitingForFirstToken && (
-                            <span className="inline-block w-0.5 h-4 ml-0.5 bg-amber-500 animate-pulse" style={{ verticalAlign: 'baseline' }} />
-                          )}
-                        </>
-                      )}
+                        ) : (
+                          /* Display Mode */
+                          <div className={`rounded-xl px-4 py-3 ${theme.userMessage} text-white shadow-sm`}>
+                            <p className="whitespace-pre-wrap">{message.content}</p>
 
-                      {/* Action Bar - Copy, Speaker, Regenerate - Hide during streaming */}
-                      {!message.isStreaming && (
-                        <div className={`flex items-center gap-1 mt-3 pt-2 border-t ${isDark ? 'border-white/5' : 'border-gray-100'}`}>
-                          <button
-                            onClick={() => handleCopyMessage(message.content, message.id)}
-                            className={`p-1.5 rounded-md transition-all ${theme.hoverBg} ${theme.textMuted}`}
-                            title="Copy response"
-                          >
-                            {copiedMessageId === message.id ? (
-                              <Check size={14} className="text-green-500" strokeWidth={2} />
-                            ) : (
-                              <Copy size={14} strokeWidth={2} />
+                            {/* Edit History Navigation - Compact like ChatGPT */}
+                            {message.editHistory && message.editHistory.length > 1 && (
+                              <div className="flex items-center justify-end gap-1 mt-2 pt-1.5 border-t border-white/20">
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); navigateEditHistory(message.id, 'prev'); }}
+                                  disabled={(message.editIndex ?? message.editHistory.length - 1) === 0}
+                                  className="p-0.5 rounded hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed"
+                                >
+                                  <ChevronLeft size={12} />
+                                </button>
+                                <span className="text-[10px] opacity-70 min-w-[24px] text-center">
+                                  {(message.editIndex ?? message.editHistory.length - 1) + 1}/{message.editHistory.length}
+                                </span>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); navigateEditHistory(message.id, 'next'); }}
+                                  disabled={(message.editIndex ?? message.editHistory.length - 1) === message.editHistory.length - 1}
+                                  className="p-0.5 rounded hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed"
+                                >
+                                  <ChevronRight size={12} />
+                                </button>
+                              </div>
                             )}
-                          </button>
-                          <button
-                            onClick={() => handleSpeak(message.content, message.id)}
-                            className={`p-1.5 rounded-md transition-all ${theme.hoverBg} ${speakingMessageId === message.id ? 'text-amber-500' : theme.textMuted}`}
-                            title={speakingMessageId === message.id ? "Stop speaking" : "Read aloud"}
-                          >
-                            <Volume2 size={14} strokeWidth={2} />
-                          </button>
-                          {/* Regenerate button only for last assistant message */}
-                          {msgIndex === messages.length - 1 && (
-                            <button
-                              onClick={handleRegenerate}
-                              disabled={isLoading}
-                              className={`p-1.5 rounded-md transition-all ${theme.hoverBg} ${theme.textMuted} disabled:opacity-50`}
-                              title="Regenerate response"
-                            >
-                              <RefreshCw size={14} strokeWidth={2} className={isLoading ? 'animate-spin' : ''} />
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ))}
+                          </div>
+                        )}
 
-              {/* Loading indicator - only show if no streaming message */}
-              {isLoading && !messages.some(m => m.isStreaming) && (
-                <div className="flex justify-start">
-                  <div className={`${theme.assistantMessage} ${theme.text} border ${theme.cardBorder} rounded-2xl px-4 py-3`}>
-                    <div className="flex items-center gap-2">
-                      <div className="flex gap-1">
-                        <span className="w-2 h-2 bg-amber-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                        <span className="w-2 h-2 bg-amber-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                        <span className="w-2 h-2 bg-amber-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                        {/* Edit Icon on Hover - ChatGPT style */}
+                        {editingMessageId !== message.id && (
+                          <button
+                            onClick={() => startEditing(message)}
+                            className="absolute -left-10 top-1/2 -translate-y-1/2 p-1.5 rounded-md opacity-0 group-hover:opacity-100 transition-all hover:bg-white/10"
+                            title="Edit message"
+                          >
+                            <Edit2 size={14} className={theme.textMuted} strokeWidth={2} />
+                          </button>
+                        )}
                       </div>
-                      <span className={theme.textMuted}>Thinking</span>
+                    ) : (
+                      /* AI Response - New design with copy, speaker, inline citations */
+                      <div className={`relative max-w-[85%] rounded-xl px-4 py-3 ${theme.assistantMessage} ${theme.text} border ${theme.cardBorder} shadow-sm ${message.isError ? 'border-red-500/50 bg-red-500/10' : ''}`} style={{ overflow: 'visible' }}>
+                        {/* Show "Thinking..." when waiting for first token */}
+                        {message.isWaitingForFirstToken ? (
+                          <div className="flex items-center gap-2">
+                            <div className="flex gap-1">
+                              <span className="w-2 h-2 bg-amber-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                              <span className="w-2 h-2 bg-amber-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                              <span className="w-2 h-2 bg-amber-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                            </div>
+                            <span className={theme.textMuted}>Thinking...</span>
+                          </div>
+                        ) : (
+                          <>
+                            <div className={`prose prose-sm max-w-none ${isDark ? 'prose-invert' : ''}`} style={{ overflow: 'visible' }}>
+                              <MarkdownRenderer
+                                content={message.content}
+                                isDark={isDark}
+                                sources={message.sources || []}
+                                sourceChunks={message.sourceChunks || []}
+                                leftPanelCollapsed={leftPanelCollapsed}
+                                onCitationClick={(source, chunkContent) => {
+                                  const doc = documents.find(d => d.filename === source || d.filename?.includes(source.split('_page_')[0]));
+                                  if (doc) {
+                                    setLeftPanelCollapsed(false);
+                                    setSourcePreview(doc);
+                                    setSourceHighlight(chunkContent || source);
+                                  }
+                                }}
+                              />
+                            </div>
+                            {/* Blinking cursor at the end of text while streaming */}
+                            {message.isStreaming && !message.isWaitingForFirstToken && (
+                              <span className="inline-block w-0.5 h-4 ml-0.5 bg-amber-500 animate-pulse" style={{ verticalAlign: 'baseline' }} />
+                            )}
+                          </>
+                        )}
+
+                        {/* Action Bar - Copy, Speaker, Regenerate - Hide during streaming */}
+                        {!message.isStreaming && (
+                          <div className={`flex items-center gap-1 mt-3 pt-2 border-t ${isDark ? 'border-white/5' : 'border-gray-100'}`}>
+                            <button
+                              onClick={() => handleCopyMessage(message.content, message.id)}
+                              className={`p-1.5 rounded-md transition-all ${theme.hoverBg} ${theme.textMuted}`}
+                              title="Copy response"
+                            >
+                              {copiedMessageId === message.id ? (
+                                <Check size={14} className="text-green-500" strokeWidth={2} />
+                              ) : (
+                                <Copy size={14} strokeWidth={2} />
+                              )}
+                            </button>
+                            <button
+                              onClick={() => handleSpeak(message.content, message.id)}
+                              className={`p-1.5 rounded-md transition-all ${theme.hoverBg} ${speakingMessageId === message.id ? 'text-amber-500' : theme.textMuted}`}
+                              title={speakingMessageId === message.id ? "Stop speaking" : "Read aloud"}
+                            >
+                              <Volume2 size={14} strokeWidth={2} />
+                            </button>
+                            {/* Regenerate button only for last assistant message */}
+                            {msgIndex === messages.length - 1 && (
+                              <button
+                                onClick={handleRegenerate}
+                                disabled={isLoading}
+                                className={`p-1.5 rounded-md transition-all ${theme.hoverBg} ${theme.textMuted} disabled:opacity-50`}
+                                title="Regenerate response"
+                              >
+                                <RefreshCw size={14} strokeWidth={2} className={isLoading ? 'animate-spin' : ''} />
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                {/* Loading indicator - only show if no streaming message */}
+                {isLoading && !messages.some(m => m.isStreaming) && (
+                  <div className="flex justify-start">
+                    <div className={`${theme.assistantMessage} ${theme.text} border ${theme.cardBorder} rounded-2xl px-4 py-3`}>
+                      <div className="flex items-center gap-2">
+                        <div className="flex gap-1">
+                          <span className="w-2 h-2 bg-amber-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                          <span className="w-2 h-2 bg-amber-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                          <span className="w-2 h-2 bg-amber-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                        </div>
+                        <span className={theme.textMuted}>Thinking</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
-              <div ref={messagesEndRef} />
-            </div>
-          )}
+                )}
+                <div ref={messagesEndRef} />
+              </div>
+            )
+          }
 
-          {showScrollToBottom && (
-            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-10">
-              <button
-                onClick={handleScrollToBottom}
-                className={`p-2 rounded-full shadow-lg transition-all hover:scale-110
+          {
+            showScrollToBottom && (
+              <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-10">
+                <button
+                  onClick={handleScrollToBottom}
+                  className={`p-2 rounded-full shadow-lg transition-all hover:scale-110
                   ${isDark ? 'bg-white/10 hover:bg-white/20 border border-white/20' : 'bg-white hover:bg-gray-50 border border-gray-200'}
                   backdrop-blur-xl`}
-                title="Scroll to bottom"
-              >
-                <ChevronDown size={20} className={theme.text} strokeWidth={2} />
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Input Area */}
-        <div className="px-4 py-4 relative z-50">
-          <div className="max-w-3xl mx-auto">
-            <div className={`flex items-end gap-1 px-3 py-2 rounded-3xl border ${isDark ? 'bg-white/[0.03] border-white/10 backdrop-blur-xl' : 'bg-white/70 border-amber-100/50 backdrop-blur-xl'}`}>
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className={`p-2 rounded-full transition-all ${theme.hoverBg} ${theme.textMuted}`}
-                title="Attach file"
-              >
-                <Plus size={20} strokeWidth={2} />
-              </button>
-              {currentLlmMode === 'api' && (
-                <div
-                  className="relative"
-                  onBlur={() => setTimeout(() => setShowModelMenu(false), 120)}
+                  title="Scroll to bottom"
                 >
-                  <button
-                    type="button"
-                    onClick={() => setShowModelMenu((open) => !open)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-2xl text-sm font-semibold transition-all shadow-sm border
-                      ${isDark
-                        ? 'bg-white/10 text-gray-100 border-white/15 hover:bg-white/15 focus-visible:ring-2 focus-visible:ring-white/30'
-                        : 'bg-amber-100/70 text-amber-900 border-amber-200 hover:bg-amber-100 focus-visible:ring-2 focus-visible:ring-amber-300'}
-                    `}
-                  >
-                    <span>{cloudModel === 'groq' ? 'Groq' : 'Gemini'}</span>
-                    <ChevronDown size={16} className={isDark ? 'text-gray-200' : 'text-amber-900'} strokeWidth={2} />
-                  </button>
+                  <ChevronDown size={20} className={theme.text} strokeWidth={2} />
+                </button>
+              </div>
+            )
+          }
+        </div >
 
-                  {showModelMenu && (
-                    <div
-                      className={`absolute bottom-14 left-0 min-w-[140px] rounded-2xl shadow-2xl border overflow-hidden backdrop-blur-xl z-[100]
-                        ${isDark ? 'bg-[#2a2b2f]/95 border-white/15' : 'bg-white/95 border-amber-100/70'}`}
-                    >
-                      {[
-                        { value: 'gemini', label: 'Gemini' },
-                        { value: 'groq', label: 'Groq' },
-                      ].map(({ value, label }) => {
-                        const isActive = cloudModel === value;
-                        return (
-                          <button
-                            key={value}
-                            type="button"
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => {
-                              handleCloudModelChange(value);
-                              setShowModelMenu(false);
-                            }}
-                            className={`w-full text-left px-3 py-2 text-sm font-medium transition-colors flex items-center justify-between
-                              ${isDark
-                                ? isActive ? 'bg-white/10 text-white' : 'text-gray-200 hover:bg-white/5'
-                                : isActive ? 'bg-amber-50 text-amber-900' : 'text-gray-800 hover:bg-amber-50'}
-                            `}
-                          >
-                            <span>{label}</span>
-                            {isActive && <span className={`text-xs ${isDark ? 'text-amber-300' : 'text-amber-600'}`}>Active</span>}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              )}
+        {/* Input Area - Grid Layout for Adaptive Compact/Expanded State */}
+        < div className="px-4 py-3 relative z-50" >
+          <div className="max-w-3xl mx-auto">
+            <div
+              className={`grid gap-x-2 gap-y-2 items-end rounded-3xl border transition-all duration-200 ease-in-out ${isDark ? 'bg-white/[0.03] border-white/10 backdrop-blur-xl' : 'bg-white/70 border-amber-100/50 backdrop-blur-xl'
+                }`}
+              style={{
+                gridTemplateColumns: 'auto 1fr auto',
+                gridTemplateAreas: isExpanded
+                  ? '"input input input" "left . right"'
+                  : '"left input right"',
+                padding: '0.5rem 0.75rem' // py-2 px-3 equivalent
+              }}
+            >
+              {/* Left Actions Group */}
+              <div style={{ gridArea: 'left' }} className="flex items-end gap-2 self-end">
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`p-2 rounded-full transition-all shrink-0 ${theme.hoverBg} ${theme.textMuted}`}
+                  title="Attach file"
+                >
+                  <Plus size={20} strokeWidth={2} />
+                </button>
+              </div>
+
+              {/* Textarea */}
               <textarea
                 ref={textareaRef}
                 value={inputMessage}
                 onChange={(e) => setInputMessage(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Ask about your documents..."
-                className={`flex-1 resize-none bg-transparent outline-none py-2 px-2 max-h-[200px] text-sm ${theme.text} placeholder:${isDark ? 'text-gray-500' : 'text-gray-400'}`}
+                className={`w-full resize-none bg-transparent outline-none py-2 px-2 overflow-y-auto text-sm leading-5 ${theme.text} placeholder:${isDark ? 'text-gray-500' : 'text-gray-400'}`}
                 rows={1}
                 disabled={isLoading}
+                style={{
+                  gridArea: 'input',
+                  minHeight: '36px',
+                  maxHeight: '200px',
+                  fieldSizing: 'content'  // Modern CSS auto-grow (Chrome 123+, Firefox 128+)
+                }}
               />
-              <button
-                onClick={handleVoiceInput}
-                className={`p-2 rounded-full transition-all ${
-                  isRecording
+
+              {/* Right Actions Group */}
+              <div style={{ gridArea: 'right' }} className="flex items-end gap-1 self-end">
+                <button
+                  onClick={handleVoiceInput}
+                  className={`p-2 rounded-full transition-all shrink-0 ${isRecording
                     ? 'animate-breathing ' + (isDark ? 'bg-red-500 text-white' : 'bg-red-600 text-white')
                     : theme.hoverBg + ' ' + theme.textMuted
-                }`}
-                title={isRecording ? 'Stop recording' : 'Start voice input'}
-              >
-                <Mic size={20} strokeWidth={2} />
-              </button>
-              {/* Send/Stop Button - Changes based on streaming state */}
-              {isStreaming ? (
-                <button
-                  onClick={handleStop}
-                  className={`p-2 rounded-full transition-all ${isDark ? 'bg-red-500 text-white hover:bg-red-400' : 'bg-red-600 text-white hover:bg-red-700'}`}
-                  title="Stop generating"
+                    }`}
+                  title={isRecording ? 'Stop recording' : 'Start voice input'}
                 >
-                  <Square size={20} strokeWidth={2} fill="currentColor" />
+                  <Mic size={20} strokeWidth={2} />
                 </button>
-              ) : (
-                <button
-                  onClick={handleSubmit}
-                  disabled={isLoading || (!inputMessage.trim() && selectedFiles.length === 0)}
-                  className={`p-2 rounded-full transition-all ${isDark ? 'bg-amber-500 text-white hover:bg-amber-400' : 'bg-amber-600 text-white hover:bg-amber-700'}
-                    disabled:opacity-50 disabled:cursor-not-allowed`}
-                >
-                  <Send size={20} strokeWidth={2} />
-                </button>
-              )}
+                {isStreaming ? (
+                  <button
+                    onClick={handleStop}
+                    className={`p-2 rounded-full transition-all shrink-0 ${isDark ? 'bg-red-500 text-white hover:bg-red-400' : 'bg-red-600 text-white hover:bg-red-700'}`}
+                    title="Stop generating"
+                  >
+                    <Square size={20} strokeWidth={2} fill="currentColor" />
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleSubmit}
+                    disabled={isLoading || (!inputMessage.trim() && selectedFiles.length === 0)}
+                    className={`p-2 rounded-full transition-all shrink-0 ${isDark ? 'bg-amber-500 text-white hover:bg-amber-400' : 'bg-amber-600 text-white hover:bg-amber-700'}
+                      disabled:opacity-50 disabled:cursor-not-allowed`}
+                  >
+                    <Send size={20} strokeWidth={2} />
+                  </button>
+                )}
+              </div>
             </div>
             <p className={`text-xs text-center mt-2 ${theme.textMuted} opacity-70`}>
               DocTalk may make mistakes. Please verify important information.
             </p>
           </div>
-        </div>
-      </div>
+        </div >
+      </div >
 
       {/* Right Panel Collapsed Bar */}
-      {rightPanelCollapsed && (
-        <div className={`relative z-[60] flex flex-col items-center py-3 px-1.5 ${theme.panelBg} rounded-2xl`}>
-          <Tooltip text="Expand studio" side="left">
-            <button
-              onClick={() => setRightPanelCollapsed(false)}
-              className={`p-2 rounded-xl transition-all ${theme.hoverBg} ${theme.textSecondary} mb-2`}
-            >
-              <PanelRight size={18} strokeWidth={2} />
-            </button>
-          </Tooltip>
-
-          <div className={`w-6 h-px ${isDark ? 'bg-gray-700' : 'bg-gray-200'} my-2`} />
-
-          {studioTools.map((tool, index) => (
-            <Tooltip key={index} text={tool.label} side="left">
-              <button className={`p-2 rounded-xl transition-all ${theme.hoverBg} mb-1`}>
-                <tool.icon size={18} strokeWidth={1.5} className={tool.color} />
+      {
+        rightPanelCollapsed && (
+          <div className={`relative z-[60] flex flex-col items-center py-3 px-1.5 ${theme.panelBg} rounded-2xl`}>
+            <Tooltip text="Expand studio" side="left">
+              <button
+                onClick={() => setRightPanelCollapsed(false)}
+                className={`p-2 rounded-xl transition-all ${theme.hoverBg} ${theme.textSecondary} mb-2`}
+              >
+                <PanelRight size={18} strokeWidth={2} />
               </button>
             </Tooltip>
-          ))}
 
-          <div className={`w-6 h-px ${isDark ? 'bg-gray-700' : 'bg-gray-200'} my-2`} />
+            <div className={`w-6 h-px ${isDark ? 'bg-gray-700' : 'bg-gray-200'} my-2`} />
 
-          <Tooltip text="Notes" side="left">
-            <button
-              onClick={() => { setRightPanelCollapsed(false); setShowNoteInput(true); }}
-              className={`p-2 rounded-xl transition-all ${theme.hoverBg} ${theme.textSecondary} mb-1`}
-            >
-              <StickyNote size={18} strokeWidth={2} />
-            </button>
-          </Tooltip>
+            {studioTools.map((tool, index) => (
+              <Tooltip key={index} text={tool.label} side="left">
+                <button className={`p-2 rounded-xl transition-all ${theme.hoverBg} mb-1`}>
+                  <tool.icon size={18} strokeWidth={1.5} className={tool.color} />
+                </button>
+              </Tooltip>
+            ))}
 
-          <Tooltip text="Chat" side="left">
-            <button className={`p-2 rounded-xl transition-all ${theme.hoverBg} ${theme.textSecondary}`}>
-              <MessageSquare size={18} strokeWidth={2} />
-            </button>
-          </Tooltip>
-        </div>
-      )}
+            <div className={`w-6 h-px ${isDark ? 'bg-gray-700' : 'bg-gray-200'} my-2`} />
+
+            <Tooltip text="Notes" side="left">
+              <button
+                onClick={() => { setRightPanelCollapsed(false); setShowNoteInput(true); }}
+                className={`p-2 rounded-xl transition-all ${theme.hoverBg} ${theme.textSecondary} mb-1`}
+              >
+                <StickyNote size={18} strokeWidth={2} />
+              </button>
+            </Tooltip>
+
+            <Tooltip text="Chat" side="left">
+              <button className={`p-2 rounded-xl transition-all ${theme.hoverBg} ${theme.textSecondary}`}>
+                <MessageSquare size={18} strokeWidth={2} />
+              </button>
+            </Tooltip>
+          </div>
+        )
+      }
 
       {/* Right Panel - Studio */}
       <ResizablePanel
-        width={showNoteInput ? editorFixedWidth : rightPanelWidth}
-        minWidth={150}
-        maxWidth={showNoteInput ? editorFixedWidth : Math.max(150, Math.min(
+        width={(showNoteInput || showFlashcards) ? Math.max(editorFixedWidth, rightPanelWidth) : rightPanelWidth}
+        minWidth={(showNoteInput || showFlashcards) ? editorFixedWidth : 150}
+        maxWidth={(showNoteInput || showFlashcards) ? editorFixedWidth : Math.max(150, Math.min(
           Math.floor(window.innerWidth * 0.35),
           window.innerWidth - (leftPanelCollapsed ? 48 : leftPanelWidth) - 450 - 32
         ))}
-        onResize={showNoteInput ? () => { } : setRightPanelWidth}
+        onResize={(showNoteInput || showFlashcards) ? () => { } : setRightPanelWidth}
         side="right"
         isDark={isDark}
         collapsed={rightPanelCollapsed}
@@ -2581,7 +2717,7 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
           {/* Show Editor at TOP when note input is open - Hide everything else */}
           {showNoteInput ? (
             <div className="flex-1 flex flex-col h-full">
-              {/* Editor Header with breadcrumb and 3-dot menu */}
+              {/* Editor Header with breadcrumb */}
               <div className={`flex items-center justify-between px-4 py-3 border-b ${theme.panelBorder}`}>
                 <div className="flex items-center gap-2">
                   <button
@@ -2592,12 +2728,12 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                       setEditingNoteId(null);
                       setShowNoteMenu(false);
                     }}
-                    className={`text-sm ${theme.textSecondary} hover:text-amber-500 transition-colors`}
+                    className={`text-sm font-semibold tracking-wide uppercase ${theme.textSecondary} hover:text-amber-500 transition-colors`}
                   >
                     Studio
                   </button>
                   <ChevronRight size={14} className={theme.textMuted} />
-                  <span className={`text-sm font-medium ${theme.text}`}>Note</span>
+                  <span className={`text-sm font-semibold ${theme.text}`}>Note</span>
                 </div>
                 <div className="relative">
                   <button
@@ -2863,215 +2999,379 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
           ) : (
             /* Normal Studio View when editor is closed */
             <>
-              {/* Studio Header */}
+              {/* Studio Header - shows breadcrumb when flashcards open */}
               <div className={`flex items-center justify-between px-4 py-3 border-b ${theme.panelBorder}`}>
-                <h2 className={`text-sm font-semibold tracking-wide uppercase ${theme.textSecondary}`}>Studio</h2>
+                {showFlashcards ? (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleCloseFlashcards}
+                      className={`text-sm font-semibold tracking-wide uppercase ${theme.textSecondary} hover:text-amber-500 transition-colors`}
+                    >
+                      Studio
+                    </button>
+                    <ChevronRight size={14} className={theme.textMuted} />
+                    <span className={`text-sm font-semibold ${theme.text}`}>Flashcards</span>
+                    {flashcards.length > 0 && (
+                      <span className={`text-xs px-1.5 py-0.5 rounded ${isDark ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-100 text-amber-700'}`}>
+                        {flashcards.length}
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <h2 className={`text-sm font-semibold tracking-wide uppercase ${theme.textSecondary}`}>Studio</h2>
+                )}
                 <button
-                  onClick={() => setRightPanelCollapsed(true)}
+                  onClick={showFlashcards ? handleCloseFlashcards : () => setRightPanelCollapsed(true)}
                   className={`p-1.5 rounded-xl transition-all ${theme.hoverBg} ${theme.textSecondary}`}
-                  title="Collapse studio"
+                  title={showFlashcards ? "Close flashcards" : "Collapse studio"}
                 >
-                  <PanelRight size={16} strokeWidth={2} />
+                  {showFlashcards ? <X size={16} strokeWidth={2} /> : <PanelRight size={16} strokeWidth={2} />}
                 </button>
               </div>
 
-              {/* Studio Tools Grid */}
+              {/* Studio Tools Grid / Flashcard View */}
               <div className="p-3 flex-1 overflow-y-auto">
-                <div className="grid grid-cols-2 gap-2">
-                  {studioTools.map((tool, index) => (
-                    <button
-                      key={index}
-                      className={`flex flex-col items-center justify-center gap-2 p-3 rounded-xl border
-                    ${theme.cardBg} ${theme.cardBorder} ${theme.hoverBg} transition-all hover:scale-[1.02]`}
-                    >
-                      <tool.icon size={20} className={tool.color} strokeWidth={1.5} />
-                      <span className={`text-xs text-center ${theme.textSecondary}`}>{tool.label}</span>
-                    </button>
-                  ))}
-                </div>
+                {showFlashcards ? (
+                  /* Flashcard View - Carousel Style */
+                  <div className="flex flex-col h-full">
+                    {flashcardsLoading ? (
+                      <div className="flex-1 flex flex-col items-center justify-center gap-4">
+                        <Loader2 size={40} className={`animate-spin ${isDark ? 'text-amber-400' : 'text-amber-600'}`} />
+                        <p className={`text-sm ${theme.textMuted}`}>Generating flashcards...</p>
+                      </div>
+                    ) : flashcards.length > 0 ? (
+                      <div className="flex-1 flex flex-col">
+                        {/* Card Container */}
+                        <div className="flex-1 flex items-center justify-center relative px-8">
+                          {/* Left Arrow */}
+                          <button
+                            onClick={handlePrevCard}
+                            disabled={currentCardIndex === 0}
+                            className={`absolute left-0 p-2 rounded-full transition-all ${currentCardIndex === 0
+                              ? 'opacity-30 cursor-not-allowed'
+                              : `${theme.hoverBg} hover:scale-110`
+                              } ${isDark ? 'text-white' : 'text-gray-700'}`}
+                          >
+                            <ChevronLeft size={24} />
+                          </button>
 
-                {/* Notes Section */}
-                <div className="mt-5">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className={`text-xs font-semibold tracking-wide uppercase ${theme.textSecondary}`}>Notes</h3>
-                    <button
-                      onClick={() => {
-                        setShowNoteInput(true);
-                        setNoteTitle('New Note');
-                        setNoteContent('');
-                        setEditingNoteId(null);
-                      }}
-                      className={`p-1 rounded-md transition-all ${theme.hoverBg} ${theme.textMuted}`}
-                    >
-                      <Plus size={14} strokeWidth={2} />
-                    </button>
-                  </div>
-
-                  {/* Notes List */}
-                  <div className="space-y-1.5">
-                    {notes.length > 0 ? (
-                      notes.map((note) => (
-                        <div
-                          key={note.id}
-                          onClick={() => {
-                            if (showNoteItemMenu !== note.id) {
-                              setEditingNoteId(note.id);
-                              setNoteTitle(note.title);
-                              setNoteContent(note.content);
-                              setShowNoteInput(true);
-                            }
-                          }}
-                          className={`group relative p-3 rounded-lg border ${theme.cardBorder} ${theme.cardBg} cursor-pointer hover:border-amber-500/30 transition-all`}
-                        >
-                          {/* Three dots menu button */}
-                          <div className="absolute top-2 right-2" data-note-menu>
+                          {/* Centered Card with depth and polish */}
+                          <div
+                            className={`w-full max-w-[280px] min-h-[220px] rounded-2xl p-5 flex flex-col justify-between relative transition-all duration-300 ${isDark
+                              ? 'bg-gradient-to-br from-gray-800 via-gray-800/95 to-gray-900'
+                              : 'bg-gradient-to-br from-white via-gray-50 to-gray-100'
+                              }`}
+                            style={{
+                              boxShadow: isDark
+                                ? '0 8px 32px rgba(0,0,0,0.4), 0 2px 8px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.05)'
+                                : '0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.8)',
+                              border: isDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(0,0,0,0.08)'
+                            }}
+                          >
+                            {/* Delete Button */}
                             <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setShowNoteItemMenu(showNoteItemMenu === note.id ? null : note.id);
-                              }}
-                              className={`p-1.5 rounded-md opacity-0 group-hover:opacity-100 ${showNoteItemMenu === note.id ? 'opacity-100' : ''} transition-all ${isDark ? 'hover:bg-white/10' : 'hover:bg-gray-100'}`}
+                              onClick={() => handleDeleteFlashcard(flashcards[currentCardIndex]?.id)}
+                              className={`absolute top-3 right-3 p-1.5 rounded-full opacity-40 hover:opacity-100 transition-all ${isDark ? 'hover:bg-red-500/20 text-red-400' : 'hover:bg-red-100 text-red-500'
+                                }`}
+                              title="Delete card"
                             >
-                              <MoreVertical size={14} className={theme.textMuted} strokeWidth={2} />
+                              <Trash2 size={14} />
                             </button>
-                            {/* Dropdown menu */}
-                            {showNoteItemMenu === note.id && (
+
+                            {/* Card Content */}
+                            <div className="flex-1 flex items-center justify-center text-center px-3 py-4">
+                              <p className={`text-lg font-medium leading-relaxed ${theme.text}`}>
+                                {showAnswer ? flashcards[currentCardIndex]?.back : flashcards[currentCardIndex]?.front}
+                              </p>
+                            </div>
+
+                            {/* See Answer / See Question Button */}
+                            <button
+                              onClick={() => setShowAnswer(!showAnswer)}
+                              className={`w-full py-2.5 text-sm font-medium rounded-xl transition-all ${isDark
+                                ? 'text-gray-400 hover:text-amber-400 hover:bg-white/5'
+                                : 'text-gray-500 hover:text-amber-600 hover:bg-gray-100'
+                                }`}
+                            >
+                              {showAnswer ? 'See question' : 'See answer'}
+                            </button>
+                          </div>
+
+                          {/* Right Arrow */}
+                          <button
+                            onClick={handleNextCard}
+                            disabled={currentCardIndex === flashcards.length - 1}
+                            className={`absolute right-0 p-2 rounded-full transition-all ${currentCardIndex === flashcards.length - 1
+                              ? 'opacity-30 cursor-not-allowed'
+                              : `${theme.hoverBg} hover:scale-110`
+                              } ${isDark ? 'text-white' : 'text-gray-700'}`}
+                          >
+                            <ChevronRight size={24} />
+                          </button>
+                        </div>
+
+                        {/* Bottom Section */}
+                        <div className="mt-4 space-y-3">
+                          {/* Explain Button */}
+                          {showAnswer && (
+                            <button
+                              onClick={() => handleExplainCard(flashcards[currentCardIndex]?.front)}
+                              className={`w-full py-2 px-4 rounded-lg text-sm font-medium flex items-center justify-center gap-2 ${isDark ? 'bg-amber-500/20 text-amber-400 hover:bg-amber-500/30' : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                                }`}
+                            >
+                              <MessageSquare size={14} />
+                              Explain this
+                            </button>
+                          )}
+
+                          {/* Progress */}
+                          <div className="flex items-center gap-3">
+                            <button
+                              onClick={handleGenerateFlashcards}
+                              disabled={flashcardsLoading}
+                              className={`p-2 rounded-lg ${theme.hoverBg} ${theme.textMuted}`}
+                              title="Generate more cards"
+                            >
+                              <RefreshCw size={16} className={flashcardsLoading ? 'animate-spin' : ''} />
+                            </button>
+                            <div className="flex-1 h-1.5 rounded-full bg-gray-700/30 overflow-hidden">
                               <div
-                                data-note-menu
-                                className={`absolute top-full right-0 mt-1 w-48 rounded-xl shadow-2xl border overflow-hidden
-                              ${isDark ? 'bg-[#252525] border-white/10' : 'bg-white border-gray-200'}`}
-                                style={{ zIndex: 100 }}
-                              >
-                                {/* Convert to source - always creates new source */}
-                                <button
-                                  onClick={async (e) => {
-                                    e.stopPropagation();
-                                    setShowNoteItemMenu(null);
-                                    await handleConvertNoteToSource(note.id);
-                                  }}
-                                  disabled={processingNoteId !== null}
-                                  className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm whitespace-nowrap transition-colors
-                                ${isDark ? 'hover:bg-white/5 text-gray-300' : 'hover:bg-gray-50 text-gray-700'}
-                                ${processingNoteId === note.id ? 'opacity-50' : ''}`}
-                                >
-                                  {processingNoteId === note.id ? (
-                                    <Loader2 size={16} strokeWidth={2} className="flex-shrink-0 animate-spin" />
-                                  ) : (
-                                    <FileUp size={16} strokeWidth={2} className={`flex-shrink-0 ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
-                                  )}
-                                  <span>Convert to source</span>
-                                </button>
-                                {/* Delete */}
+                                className={`h-full rounded-full transition-all ${isDark ? 'bg-amber-400' : 'bg-amber-500'}`}
+                                style={{ width: `${((currentCardIndex + 1) / flashcards.length) * 100}%` }}
+                              />
+                            </div>
+                            <span className={`text-xs ${theme.textMuted} whitespace-nowrap`}>
+                              {currentCardIndex + 1} / {flashcards.length} cards
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className={`flex-1 flex flex-col items-center justify-center gap-3 ${theme.textMuted}`}>
+                        <BookOpen size={32} strokeWidth={1.5} />
+                        <p className="text-sm">No flashcards yet</p>
+                        <button
+                          onClick={handleGenerateFlashcards}
+                          disabled={flashcardsLoading}
+                          className={`mt-2 px-4 py-2 rounded-lg text-sm ${theme.buttonPrimary} text-white flex items-center gap-2`}
+                        >
+                          <Sparkles size={14} />
+                          Generate Flashcards
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  /* Normal Studio Tools Grid */
+                  <>
+                    <div className="grid grid-cols-2 gap-2">
+                      {studioTools.map((tool, index) => (
+                        <button
+                          key={index}
+                          onClick={() => handleStudioToolClick(tool.label)}
+                          className={`flex flex-col items-center justify-center gap-2 p-3 rounded-xl border
+                            ${theme.cardBg} ${theme.cardBorder} ${theme.hoverBg} transition-all hover:scale-[1.02]
+                            ${tool.label === 'Flashcards' && flashcards.length > 0 ? (isDark ? 'ring-1 ring-pink-500/50' : 'ring-1 ring-pink-400/50') : ''}`}
+                        >
+                          <tool.icon size={20} className={tool.color} strokeWidth={1.5} />
+                          <span className={`text-xs text-center ${theme.textSecondary}`}>
+                            {tool.label}
+                            {tool.label === 'Flashcards' && flashcards.length > 0 && (
+                              <span className={`ml-1 px-1 rounded text-[10px] ${isDark ? 'bg-pink-500/20 text-pink-400' : 'bg-pink-100 text-pink-600'}`}>
+                                {flashcards.length}
+                              </span>
+                            )}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Notes Section */}
+                    <div className="mt-5">
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className={`text-xs font-semibold tracking-wide uppercase ${theme.textSecondary}`}>Notes</h3>
+                        <button
+                          onClick={() => {
+                            setShowNoteInput(true);
+                            setNoteTitle('New Note');
+                            setNoteContent('');
+                            setEditingNoteId(null);
+                          }}
+                          className={`p-1 rounded-md transition-all ${theme.hoverBg} ${theme.textMuted}`}
+                        >
+                          <Plus size={14} strokeWidth={2} />
+                        </button>
+                      </div>
+
+                      {/* Notes List */}
+                      <div className="space-y-1.5">
+                        {notes.length > 0 ? (
+                          notes.map((note) => (
+                            <div
+                              key={note.id}
+                              onClick={() => {
+                                if (showNoteItemMenu !== note.id) {
+                                  setEditingNoteId(note.id);
+                                  setNoteTitle(note.title);
+                                  setNoteContent(note.content);
+                                  setShowNoteInput(true);
+                                }
+                              }}
+                              className={`group relative p-3 rounded-lg border ${theme.cardBorder} ${theme.cardBg} cursor-pointer hover:border-amber-500/30 transition-all`}
+                            >
+                              {/* Three dots menu button */}
+                              <div className="absolute top-2 right-2" data-note-menu>
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    setShowNoteItemMenu(null);
-                                    setShowDeleteConfirm(note.id);
+                                    setShowNoteItemMenu(showNoteItemMenu === note.id ? null : note.id);
                                   }}
-                                  className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors border-t
-                                ${isDark ? 'border-white/5 hover:bg-white/5 text-red-400' : 'border-gray-100 hover:bg-red-50 text-red-500'}`}
+                                  className={`p-1.5 rounded-md opacity-0 group-hover:opacity-100 ${showNoteItemMenu === note.id ? 'opacity-100' : ''} transition-all ${isDark ? 'hover:bg-white/10' : 'hover:bg-gray-100'}`}
                                 >
-                                  <Trash size={16} strokeWidth={2} />
-                                  <span>Delete</span>
+                                  <MoreVertical size={14} className={theme.textMuted} strokeWidth={2} />
                                 </button>
+                                {/* Dropdown menu */}
+                                {showNoteItemMenu === note.id && (
+                                  <div
+                                    data-note-menu
+                                    className={`absolute top-full right-0 mt-1 w-48 rounded-xl shadow-2xl border overflow-hidden
+                              ${isDark ? 'bg-[#252525] border-white/10' : 'bg-white border-gray-200'}`}
+                                    style={{ zIndex: 100 }}
+                                  >
+                                    {/* Convert to source - always creates new source */}
+                                    <button
+                                      onClick={async (e) => {
+                                        e.stopPropagation();
+                                        setShowNoteItemMenu(null);
+                                        await handleConvertNoteToSource(note.id);
+                                      }}
+                                      disabled={processingNoteId !== null}
+                                      className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm whitespace-nowrap transition-colors
+                                ${isDark ? 'hover:bg-white/5 text-gray-300' : 'hover:bg-gray-50 text-gray-700'}
+                                ${processingNoteId === note.id ? 'opacity-50' : ''}`}
+                                    >
+                                      {processingNoteId === note.id ? (
+                                        <Loader2 size={16} strokeWidth={2} className="flex-shrink-0 animate-spin" />
+                                      ) : (
+                                        <FileUp size={16} strokeWidth={2} className={`flex-shrink-0 ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
+                                      )}
+                                      <span>Convert to source</span>
+                                    </button>
+                                    {/* Delete */}
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setShowNoteItemMenu(null);
+                                        setShowDeleteConfirm(note.id);
+                                      }}
+                                      className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors border-t
+                                ${isDark ? 'border-white/5 hover:bg-white/5 text-red-400' : 'border-gray-100 hover:bg-red-50 text-red-500'}`}
+                                    >
+                                      <Trash size={16} strokeWidth={2} />
+                                      <span>Delete</span>
+                                    </button>
+                                  </div>
+                                )}
                               </div>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2 mb-1 pr-6">
-                            <h4 className={`text-sm font-medium ${theme.text}`}>{note.title}</h4>
-                          </div>
-                          <div className={`text-xs ${theme.textMuted} line-clamp-2`} dangerouslySetInnerHTML={{ __html: note.content }} />
-                        </div>
-                      ))
-                    ) : (
-                      <button
-                        onClick={() => {
-                          setShowNoteInput(true);
-                          setNoteTitle('New Note');
-                          setNoteContent('');
-                        }}
-                        className={`w-full flex items-center justify-center gap-2 py-3 px-3 rounded-lg border border-dashed
+                              <div className="flex items-center gap-2 mb-1 pr-6">
+                                <h4 className={`text-sm font-medium ${theme.text}`}>{note.title}</h4>
+                              </div>
+                              <div className={`text-xs ${theme.textMuted} line-clamp-2`} dangerouslySetInnerHTML={{ __html: note.content }} />
+                            </div>
+                          ))
+                        ) : (
+                          <button
+                            onClick={() => {
+                              setShowNoteInput(true);
+                              setNoteTitle('New Note');
+                              setNoteContent('');
+                            }}
+                            className={`w-full flex items-center justify-center gap-2 py-3 px-3 rounded-lg border border-dashed
                       ${isDark ? 'border-gray-700 hover:border-amber-500/30 hover:bg-white/5' : 'border-gray-300 hover:border-amber-400 hover:bg-amber-50/50'}
                       ${theme.textMuted} transition-all text-sm`}
-                      >
-                        <StickyNote size={14} strokeWidth={2} />
-                        <span>Add note</span>
-                      </button>
-                    )}
-                  </div>
-                </div>
+                          >
+                            <StickyNote size={14} strokeWidth={2} />
+                            <span>Add note</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
-            </>
-          )}
 
-          {/* Delete Confirmation Modal */}
-          {showDeleteConfirm && (
-            <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm">
-              <div className={`w-full max-w-sm mx-4 rounded-2xl shadow-2xl ${isDark ? 'bg-[#1a1a1a] border border-white/10' : 'bg-white border border-gray-200'} p-6`}>
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="p-2 rounded-full bg-red-500/10">
-                    <AlertTriangle size={24} className="text-red-500" />
+              {/* Delete Confirmation Modal */}
+              {showDeleteConfirm && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                  <div className={`w-full max-w-sm mx-4 rounded-2xl shadow-2xl ${isDark ? 'bg-[#1a1a1a] border border-white/10' : 'bg-white border border-gray-200'} p-6`}>
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="p-2 rounded-full bg-red-500/10">
+                        <AlertTriangle size={24} className="text-red-500" />
+                      </div>
+                      <h3 className={`text-lg font-semibold ${theme.text}`}>Delete Note?</h3>
+                    </div>
+                    <p className={`mb-6 ${theme.textSecondary}`}>Are you sure you want to delete this note? This action cannot be undone.</p>
+                    <div className="flex justify-end gap-3">
+                      <button
+                        onClick={() => setShowDeleteConfirm(null)}
+                        className={`px-4 py-2 rounded-lg ${theme.hoverBg} ${theme.textSecondary}`}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => {
+                          deleteNote(showDeleteConfirm);
+                          setShowDeleteConfirm(null);
+                          setShowNoteInput(false);
+                          setNoteContent('');
+                          setNoteTitle('New Note');
+                          setEditingNoteId(null);
+                        }}
+                        className="px-4 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </div>
-                  <h3 className={`text-lg font-semibold ${theme.text}`}>Delete Note?</h3>
                 </div>
-                <p className={`mb-6 ${theme.textSecondary}`}>Are you sure you want to delete this note? This action cannot be undone.</p>
-                <div className="flex justify-end gap-3">
-                  <button
-                    onClick={() => setShowDeleteConfirm(null)}
-                    className={`px-4 py-2 rounded-lg ${theme.hoverBg} ${theme.textSecondary}`}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={() => {
-                      deleteNote(showDeleteConfirm);
-                      setShowDeleteConfirm(null);
-                      setShowNoteInput(false);
-                      setNoteContent('');
-                      setNoteTitle('New Note');
-                      setEditingNoteId(null);
-                    }}
-                    className="px-4 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-            </div>
+              )}
+            </>
           )}
         </div>
       </ResizablePanel>
 
       {/* Delete Source Confirmation Modal - Outside panels for proper z-index */}
-      {showDeleteSourceConfirm !== null && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className={`w-full max-w-sm mx-4 rounded-2xl shadow-2xl ${isDark ? 'bg-[#1a1a1a] border border-white/10' : 'bg-white border border-gray-200'} p-6`}>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 rounded-full bg-red-500/10">
-                <AlertTriangle size={24} className="text-red-500" />
+      {
+        showDeleteSourceConfirm !== null && (
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+            <div className={`w-full max-w-sm mx-4 rounded-2xl shadow-2xl ${isDark ? 'bg-[#1a1a1a] border border-white/10' : 'bg-white border border-gray-200'} p-6`}>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 rounded-full bg-red-500/10">
+                  <AlertTriangle size={24} className="text-red-500" />
+                </div>
+                <h3 className={`text-lg font-semibold ${theme.text}`}>Remove Source?</h3>
               </div>
-              <h3 className={`text-lg font-semibold ${theme.text}`}>Remove Source?</h3>
-            </div>
-            <p className={`mb-6 ${theme.textSecondary}`}>
-              Are you sure you want to remove "{documents[showDeleteSourceConfirm]?.filename || 'this document'}" from sources?
-            </p>
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => setShowDeleteSourceConfirm(null)}
-                className={`px-4 py-2 rounded-lg ${theme.hoverBg} ${theme.textSecondary}`}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => handleDeleteSource(showDeleteSourceConfirm)}
-                className="px-4 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white"
-              >
-                Remove
-              </button>
+              <p className={`mb-6 ${theme.textSecondary}`}>
+                Are you sure you want to remove "{documents[showDeleteSourceConfirm]?.filename || 'this document'}" from sources?
+              </p>
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => setShowDeleteSourceConfirm(null)}
+                  className={`px-4 py-2 rounded-lg ${theme.hoverBg} ${theme.textSecondary}`}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleDeleteSource(showDeleteSourceConfirm)}
+                  className="px-4 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white"
+                >
+                  Remove
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
       {/* Hidden file input */}
       <input
@@ -3082,7 +3382,7 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
         className="hidden"
         accept=".pdf,.doc,.docx,.txt,.md"
       />
-    </div>
+    </div >
   );
 };
 

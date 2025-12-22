@@ -126,15 +126,24 @@ RESPONSE STYLE:
         context_docs: List[Dict],
         chat_history: List[Dict],
         hybrid_context: Optional[str] = None,
+        **kwargs
     ) -> Dict[str, any]:
         messages = self._build_messages(query, context_docs, chat_history, hybrid_context)
+        
+        # Extract options from kwargs
+        fmt = kwargs.get("format")
 
         def _call_ollama():
-            return self.client.chat(
-                model=self.model_name,
-                messages=messages,
-                options={"num_ctx": self.context_length},
-            )
+            options = {"num_ctx": self.context_length}
+            call_kwargs = {
+                "model": self.model_name,
+                "messages": messages,
+                "options": options,
+            }
+            if fmt:
+                call_kwargs["format"] = fmt
+            
+            return self.client.chat(**call_kwargs)
 
         try:
             loop = asyncio.get_running_loop()
@@ -143,8 +152,12 @@ RESPONSE STYLE:
             hint = f"Ensure Ollama is running on {OLLAMA_HOST} and the model '{self.model_name}' is pulled."
             raise ValueError(f"Failed to generate response with local model: {str(exc)}. {hint}")
 
-        message = response.get("message", {})
-        content = message.get("content", "") if isinstance(message, dict) else ""
+        if hasattr(response, 'message'):
+            message = response.message
+            content = message.content if hasattr(message, 'content') else ""
+        else:
+            message = response.get("message", {})
+            content = message.get("content", "") if isinstance(message, dict) else ""
 
         sources = self._extract_sources(context_docs)
         source_chunks = self._extract_source_chunks(context_docs)

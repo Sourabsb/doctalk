@@ -47,7 +47,8 @@ class GroqClient:
         query: str,
         context_docs: List[Dict],
         chat_history: List[Dict],
-        hybrid_context: Optional[str] = None
+        hybrid_context: Optional[str] = None,
+        **kwargs
     ) -> Dict[str, any]:
         messages = self._build_messages(query, context_docs, chat_history, hybrid_context)
 

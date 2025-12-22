@@ -33,7 +33,8 @@ class GeminiClient:
         query: str,
         context_docs: List[Dict],
         chat_history: List[Dict],
-        hybrid_context: Optional[str] = None
+        hybrid_context: Optional[str] = None,
+        **kwargs
     ) -> Dict[str, any]:
         prompt = self._build_prompt(query, context_docs, chat_history, hybrid_context)
 

@@ -116,6 +116,25 @@ class ConversationDetailResponse(BaseModel):
     llm_mode: Optional[str] = None
 
 
+class FlashcardResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    conversation_id: int
+    front: str
+    back: str
+    order_index: int
+    created_at: datetime
+
+
+class FlashcardListResponse(BaseModel):
+    flashcards: List[FlashcardResponse]
+
+
+class FlashcardGenerateRequest(BaseModel):
+    cloud_model: Optional[str] = None
+
+
 ResponseVariant.model_rebuild()
 ChatMessageResponse.model_rebuild()
 ChatResponse.model_rebuild()
