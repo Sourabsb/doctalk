@@ -34,6 +34,7 @@ class Conversation(Base):
     )
     chunks = relationship("DocumentChunk", back_populates="conversation", cascade="all, delete-orphan")
     flashcards = relationship("Flashcard", back_populates="conversation", cascade="all, delete-orphan")
+    mindmap = relationship("MindMap", back_populates="conversation", uselist=False, cascade="all, delete-orphan")
 
 class Document(Base):
     __tablename__ = "documents"
@@ -96,3 +97,15 @@ class Flashcard(Base):
 
     conversation = relationship("Conversation", back_populates="flashcards")
 
+
+class MindMap(Base):
+    __tablename__ = "mindmaps"
+
+    id = Column(Integer, primary_key=True, index=True)
+    conversation_id = Column(Integer, ForeignKey("conversations.id"), nullable=False, unique=True, index=True)
+    title = Column(String, nullable=False)
+    data_json = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    conversation = relationship("Conversation", back_populates="mindmap")

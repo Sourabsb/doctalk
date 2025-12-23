@@ -135,6 +135,26 @@ class FlashcardGenerateRequest(BaseModel):
     cloud_model: Optional[str] = None
 
 
+class MindMapNode(BaseModel):
+    id: str
+    label: str
+    children: Optional[List['MindMapNode']] = None
+
+class MindMapResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    conversation_id: int
+    title: str
+    nodes: List[MindMapNode]
+    source_count: int
+    created_at: datetime
+    updated_at: datetime
+
+class MindMapGenerateRequest(BaseModel):
+    cloud_model: Optional[str] = None
+
+
+MindMapNode.model_rebuild()
 ResponseVariant.model_rebuild()
 ChatMessageResponse.model_rebuild()
 ChatResponse.model_rebuild()

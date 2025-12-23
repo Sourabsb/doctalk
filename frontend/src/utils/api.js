@@ -301,3 +301,32 @@ export const deleteAllFlashcards = async (conversationId) => {
   await api.delete(`/api/conversations/${conversationId}/flashcards`)
 }
 
+export const getMindMap = async (conversationId) => {
+  const response = await api.get(`/api/conversations/${conversationId}/mindmap`)
+  return response.data
+}
+
+export const generateMindMap = async (conversationId, cloudModel = null) => {
+  const token = localStorage.getItem('docTalkToken');
+  const API_BASE_URL = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8000`;
+
+  const response = await fetch(`${API_BASE_URL}/api/conversations/${conversationId}/mindmap/generate`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify({ cloud_model: cloudModel })
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || `HTTP error ${response.status}`);
+  }
+
+  return await response.json();
+}
+
+export const deleteMindMap = async (conversationId) => {
+  await api.delete(`/api/conversations/${conversationId}/mindmap`)
+}

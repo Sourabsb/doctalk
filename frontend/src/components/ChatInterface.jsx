@@ -10,7 +10,8 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { getConversation, sendMessage, sendMessageStream, uploadFiles, addDocumentsToConversation, editMessage, deleteMessage as deleteMessageApi, deleteDocument, createNote, updateNote, convertNoteToSource, unconvertNoteFromSource, toggleDocument, getFlashcards, generateFlashcards, deleteFlashcard } from '../utils/api';
+import { getConversation, sendMessage, sendMessageStream, uploadFiles, addDocumentsToConversation, editMessage, deleteMessage as deleteMessageApi, deleteDocument, createNote, updateNote, convertNoteToSource, unconvertNoteFromSource, toggleDocument, getFlashcards, generateFlashcards, deleteFlashcard, getMindMap, generateMindMap } from '../utils/api';
+import MindMapCanvas from './MindMapCanvas';
 
 // Resizable Panel Component
 const ResizablePanel = ({ children, width, minWidth, maxWidth, onResize, side, isDark, collapsed }) => {
@@ -472,6 +473,16 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
   const [showAnswer, setShowAnswer] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
 
+  // Mind Map states
+  const [mindMapData, setMindMapData] = useState(null);
+  const [mindMapLoading, setMindMapLoading] = useState(false);
+  const [showMindMap, setShowMindMap] = useState(false);
+  const [mindMapCanvasMode, setMindMapCanvasMode] = useState(false);
+  const [expandedNodes, setExpandedNodes] = useState({});
+  const [mindMapZoom, setMindMapZoom] = useState(1);
+  const [mindMapPan, setMindMapPan] = useState({ x: 0, y: 0 });
+  const mindMapGenRef = useRef(false);
+
   // Refs
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
@@ -831,6 +842,32 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
       } catch (e) {
         // Flashcards not available, ignore
       }
+
+      // Load mind map
+      try {
+        const mindMapResult = await getMindMap(conversationId);
+        if (mindMapResult) {
+          setMindMapData(mindMapResult);
+          const savedExpanded = localStorage.getItem(`mindmap_expanded_${conversationId}`);
+          if (savedExpanded) {
+            setExpandedNodes(JSON.parse(savedExpanded));
+          } else {
+            const initialExpanded = {};
+            mindMapResult.nodes?.forEach(node => { initialExpanded[node.id] = true; });
+            setExpandedNodes(initialExpanded);
+          }
+          const savedZoom = localStorage.getItem(`mindmap_zoom_${conversationId}`);
+          if (savedZoom) {
+            setMindMapZoom(JSON.parse(savedZoom));
+          }
+          const savedPan = localStorage.getItem(`mindmap_pan_${conversationId}`);
+          if (savedPan) {
+            setMindMapPan(JSON.parse(savedPan));
+          }
+        }
+      } catch (e) {
+        // Mind map not available, ignore
+      }
     } catch (error) {
       console.error('Error loading conversation:', error);
     }
@@ -991,12 +1028,70 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
     }
   };
 
+  // Mind Map handlers
+  const handleGenerateMindMap = async () => {
+    if (!conversationId || mindMapGenRef.current) return;
+
+    mindMapGenRef.current = true;
+    setMindMapLoading(true);
+    setShowMindMap(true);
+
+    try {
+      const selectedCloudModel = currentLlmMode === 'api' ? cloudModel : null;
+      const result = await generateMindMap(conversationId, selectedCloudModel);
+      if (result) {
+        setMindMapData(result);
+        const initialExpanded = {};
+        result.nodes?.forEach(node => { initialExpanded[node.id] = true; });
+        setExpandedNodes(initialExpanded);
+        localStorage.setItem(`mindmap_expanded_${conversationId}`, JSON.stringify(initialExpanded));
+      }
+    } catch (error) {
+      console.error('Error generating mind map:', error);
+      alert(`Failed to generate mind map: ${error.message}`);
+    } finally {
+      mindMapGenRef.current = false;
+      setMindMapLoading(false);
+    }
+  };
+
+  const handleMindMapNodeToggle = (nodeId) => {
+    setExpandedNodes(prev => {
+      const updated = { ...prev, [nodeId]: !prev[nodeId] };
+      localStorage.setItem(`mindmap_expanded_${conversationId}`, JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const handleMindMapNodeClick = (label) => {
+    setInputMessage(`Explain in detail about: "${label}"`);
+    // Exit fullscreen mode but keep mind map visible at minimum width
+    if (mindMapCanvasMode) {
+      setMindMapCanvasMode(false);
+    }
+    // Focus the textarea for easy submission
+    setTimeout(() => {
+      textareaRef.current?.focus();
+    }, 100);
+  };
+
+  const handleCloseMindMap = () => {
+    setShowMindMap(false);
+    setMindMapCanvasMode(false);
+  };
+
   const handleStudioToolClick = (toolLabel) => {
     if (toolLabel === 'Flashcards') {
       if (flashcards.length > 0) {
         setShowFlashcards(true);
       } else {
         handleGenerateFlashcards();
+      }
+    } else if (toolLabel === 'Mind Map') {
+      if (mindMapData) {
+        setShowMindMap(true);
+      } else {
+        handleGenerateMindMap();
       }
     }
   };
@@ -1959,7 +2054,7 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
         onResize={sourcePreview ? () => { } : setLeftPanelWidth}
         side="left"
         isDark={isDark}
-        collapsed={leftPanelCollapsed}
+        collapsed={leftPanelCollapsed || mindMapCanvasMode}
       >
         <div className={`h-full flex flex-col ${theme.panelBg} backdrop-blur-xl rounded-2xl`}>
           {sourcePreview ? (
@@ -2251,7 +2346,10 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
       </ResizablePanel>
 
       {/* Middle Panel - Chat */}
-      <div className={`flex-1 flex flex-col min-w-0 relative z-10 ${theme.panelBg} rounded-2xl overflow-visible`}>
+      <div
+        className={`flex-1 flex flex-col min-w-0 relative z-10 ${theme.panelBg} rounded-2xl overflow-visible`}
+        style={{ display: mindMapCanvasMode ? 'none' : 'flex' }}
+      >
         {/* Chat Header */}
         <div className={`relative z-30 flex items-center justify-between px-5 py-3 border-b ${theme.panelBorder} backdrop-blur-xl`}>
           <div className="flex items-center gap-2.5">
@@ -2702,18 +2800,18 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
 
       {/* Right Panel - Studio */}
       <ResizablePanel
-        width={(showNoteInput || showFlashcards) ? Math.max(editorFixedWidth, rightPanelWidth) : rightPanelWidth}
-        minWidth={(showNoteInput || showFlashcards) ? editorFixedWidth : 150}
-        maxWidth={(showNoteInput || showFlashcards) ? editorFixedWidth : Math.max(150, Math.min(
+        width={showMindMap ? (mindMapCanvasMode ? window.innerWidth : Math.max(450, rightPanelWidth)) : (showNoteInput || showFlashcards) ? Math.max(editorFixedWidth, rightPanelWidth) : rightPanelWidth}
+        minWidth={showMindMap ? 450 : (showNoteInput || showFlashcards) ? editorFixedWidth : 150}
+        maxWidth={showMindMap ? (mindMapCanvasMode ? window.innerWidth : Math.max(450, window.innerWidth - (leftPanelCollapsed ? 80 : leftPanelWidth) - 450)) : (showNoteInput || showFlashcards) ? editorFixedWidth : Math.max(150, Math.min(
           Math.floor(window.innerWidth * 0.35),
           window.innerWidth - (leftPanelCollapsed ? 48 : leftPanelWidth) - 450 - 32
         ))}
-        onResize={(showNoteInput || showFlashcards) ? () => { } : setRightPanelWidth}
+        onResize={showMindMap && !mindMapCanvasMode ? setRightPanelWidth : (showNoteInput || showFlashcards) ? () => { } : setRightPanelWidth}
         side="right"
         isDark={isDark}
-        collapsed={rightPanelCollapsed}
+        collapsed={rightPanelCollapsed && !mindMapCanvasMode && !showMindMap}
       >
-        <div className={`h-full flex flex-col ${theme.panelBg} backdrop-blur-xl rounded-2xl`}>
+        <div className={`h-full flex flex-col ${mindMapCanvasMode ? '' : theme.panelBg + ' backdrop-blur-xl rounded-2xl'} ${mindMapCanvasMode ? 'overflow-hidden' : ''}`}>
           {/* Show Editor at TOP when note input is open - Hide everything else */}
           {showNoteInput ? (
             <div className="flex-1 flex flex-col h-full">
@@ -2999,9 +3097,23 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
           ) : (
             /* Normal Studio View when editor is closed */
             <>
-              {/* Studio Header - shows breadcrumb when flashcards open */}
-              <div className={`flex items-center justify-between px-4 py-3 border-b ${theme.panelBorder}`}>
-                {showFlashcards ? (
+              {/* Studio Header - hide in fullscreen mode */}
+              <div
+                className={`flex items-center justify-between px-4 py-3 border-b ${theme.panelBorder}`}
+                style={{ display: mindMapCanvasMode ? 'none' : 'flex' }}
+              >
+                {showMindMap ? (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleCloseMindMap}
+                      className={`text-sm font-semibold tracking-wide uppercase ${theme.textSecondary} hover:text-amber-500 transition-colors`}
+                    >
+                      Studio
+                    </button>
+                    <ChevronRight size={14} className={theme.textMuted} />
+                    <span className={`text-sm font-semibold ${theme.text}`}>Mindmap</span>
+                  </div>
+                ) : showFlashcards ? (
                   <div className="flex items-center gap-2">
                     <button
                       onClick={handleCloseFlashcards}
@@ -3020,18 +3132,83 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                 ) : (
                   <h2 className={`text-sm font-semibold tracking-wide uppercase ${theme.textSecondary}`}>Studio</h2>
                 )}
-                <button
-                  onClick={showFlashcards ? handleCloseFlashcards : () => setRightPanelCollapsed(true)}
-                  className={`p-1.5 rounded-xl transition-all ${theme.hoverBg} ${theme.textSecondary}`}
-                  title={showFlashcards ? "Close flashcards" : "Collapse studio"}
-                >
-                  {showFlashcards ? <X size={16} strokeWidth={2} /> : <PanelRight size={16} strokeWidth={2} />}
-                </button>
+                <div className="flex items-center gap-1">
+                  {showMindMap && (
+                    <>
+                      <button
+                        onClick={() => setMindMapCanvasMode(!mindMapCanvasMode)}
+                        className={`p-1.5 rounded-xl transition-all ${theme.hoverBg} ${theme.textSecondary}`}
+                        title={mindMapCanvasMode ? "Exit fullscreen" : "Fullscreen"}
+                      >
+                        {mindMapCanvasMode ? (
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3" />
+                          </svg>
+                        ) : (
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+                          </svg>
+                        )}
+                      </button>
+                    </>
+                  )}
+                  <button
+                    onClick={showMindMap ? handleCloseMindMap : (showFlashcards ? handleCloseFlashcards : () => setRightPanelCollapsed(true))}
+                    className={`p-1.5 rounded-xl transition-all ${theme.hoverBg} ${theme.textSecondary}`}
+                    title={(showMindMap || showFlashcards) ? "Close" : "Collapse studio"}
+                  >
+                    {(showMindMap || showFlashcards) ? <X size={16} strokeWidth={2} /> : <PanelRight size={16} strokeWidth={2} />}
+                  </button>
+                </div>
               </div>
 
-              {/* Studio Tools Grid / Flashcard View */}
-              <div className="p-3 flex-1 overflow-y-auto">
-                {showFlashcards ? (
+              {/* Studio Tools Grid / Flashcard View / Mind Map View */}
+              <div className={`${showMindMap && mindMapCanvasMode ? 'p-0' : 'p-3'} flex-1 ${showMindMap && mindMapCanvasMode ? 'overflow-hidden' : 'overflow-y-auto'}`}>
+                {showMindMap ? (
+                  /* Mind Map View */
+                  <div
+                    className="flex flex-col w-full"
+                    style={{
+                      minHeight: mindMapCanvasMode ? 'calc(100vh - 48px)' : '500px',
+                      height: mindMapCanvasMode ? 'calc(100vh - 48px)' : '100%'
+                    }}
+                  >
+                    {mindMapLoading ? (
+                      <div className="flex-1 flex flex-col items-center justify-center gap-4">
+                        <Loader2 size={40} className={`animate-spin ${isDark ? 'text-amber-400' : 'text-amber-600'}`} />
+                        <p className={`text-sm ${theme.textMuted}`}>Generating mind map...</p>
+                      </div>
+                    ) : mindMapData ? (
+                      <MindMapCanvas
+                        mindMapData={mindMapData}
+                        expandedNodes={expandedNodes}
+                        onNodeToggle={handleMindMapNodeToggle}
+                        onNodeClick={handleMindMapNodeClick}
+                        isDark={isDark}
+                        zoom={mindMapZoom}
+                        setZoom={setMindMapZoom}
+                        pan={mindMapPan}
+                        setPan={setMindMapPan}
+                        conversationId={conversationId}
+                        isFullscreen={mindMapCanvasMode}
+                        onExitFullscreen={() => setMindMapCanvasMode(false)}
+                      />
+                    ) : (
+                      <div className={`flex-1 flex flex-col items-center justify-center gap-3 ${theme.textMuted}`}>
+                        <Brain size={32} strokeWidth={1.5} />
+                        <p className="text-sm">No mind map yet</p>
+                        <button
+                          onClick={handleGenerateMindMap}
+                          disabled={mindMapLoading}
+                          className={`mt-2 px-4 py-2 rounded-lg text-sm ${theme.buttonPrimary} text-white flex items-center gap-2`}
+                        >
+                          <Sparkles size={14} />
+                          Generate Mind Map
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ) : showFlashcards ? (
                   /* Flashcard View - Carousel Style */
                   <div className="flex flex-col h-full">
                     {flashcardsLoading ? (
@@ -3171,7 +3348,8 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                           onClick={() => handleStudioToolClick(tool.label)}
                           className={`flex flex-col items-center justify-center gap-2 p-3 rounded-xl border
                             ${theme.cardBg} ${theme.cardBorder} ${theme.hoverBg} transition-all hover:scale-[1.02]
-                            ${tool.label === 'Flashcards' && flashcards.length > 0 ? (isDark ? 'ring-1 ring-pink-500/50' : 'ring-1 ring-pink-400/50') : ''}`}
+                            ${tool.label === 'Flashcards' && flashcards.length > 0 ? (isDark ? 'ring-1 ring-pink-500/50' : 'ring-1 ring-pink-400/50') : ''}
+                            ${tool.label === 'Mind Map' && mindMapData ? (isDark ? 'ring-1 ring-emerald-500/50' : 'ring-1 ring-emerald-400/50') : ''}`}
                         >
                           <tool.icon size={20} className={tool.color} strokeWidth={1.5} />
                           <span className={`text-xs text-center ${theme.textSecondary}`}>
@@ -3179,6 +3357,11 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                             {tool.label === 'Flashcards' && flashcards.length > 0 && (
                               <span className={`ml-1 px-1 rounded text-[10px] ${isDark ? 'bg-pink-500/20 text-pink-400' : 'bg-pink-100 text-pink-600'}`}>
                                 {flashcards.length}
+                              </span>
+                            )}
+                            {tool.label === 'Mind Map' && mindMapData && (
+                              <span className={`ml-1 px-1 rounded text-[10px] ${isDark ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-100 text-emerald-600'}`}>
+                                ✓
                               </span>
                             )}
                           </span>
