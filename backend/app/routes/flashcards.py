@@ -8,6 +8,7 @@ from ..dependencies import get_db, get_current_user
 from ..models.db_models import Conversation, DocumentChunk, Flashcard
 from ..models.schemas import FlashcardResponse, FlashcardListResponse, FlashcardGenerateRequest
 from ..utils.llm_router import get_llm_client
+from ..utils.ollama_client import LocalModeLock
 
 router = APIRouter(tags=["flashcards"])
 
@@ -30,59 +31,90 @@ Generate diverse, meaningful flashcards covering all major topics from the docum
 
 
 def parse_flashcards_response(response_text: str) -> List[dict]:
-    """Parse LLM response to extract flashcard data."""
-    print(f"[Flashcards] Parsing response (len={len(response_text)}): {response_text[:200]}...")
+    """Parse LLM response to extract flashcard data with multiple fallback strategies."""
+    
+    # Clean up common issues
+    cleaned = response_text.strip()
+    
+    # Remove markdown code blocks
+    cleaned = re.sub(r'```(?:json)?\s*', '', cleaned)
+    cleaned = re.sub(r'\s*```', '', cleaned)
+    
+    # Remove preamble text before JSON array
+    first_bracket = cleaned.find('[')
+    if first_bracket > 0:
+        cleaned = cleaned[first_bracket:]
+    
+    cleaned = cleaned.strip()
 
-    # Strategy 1: Direct JSON parse
+    # Direct JSON parse
     try:
-        data = json.loads(response_text)
-        if isinstance(data, list):
+        data = json.loads(cleaned)
+        if isinstance(data, list) and len(data) > 0:
             return data
         if isinstance(data, dict) and "flashcards" in data:
             return data["flashcards"]
     except json.JSONDecodeError:
         pass
 
-    # Strategy 2: Regex extraction of the first valid JSON list
+    # Bracket matching extraction
     try:
-        # Non-greedy match for arrays
-        matches = re.finditer(r'\[[\s\S]*?\]', response_text)
-        for match in matches:
-            try:
-                data = json.loads(match.group())
-                if isinstance(data, list) and len(data) > 0:
-                    print("[Flashcards] Successfully extracted JSON list via regex")
-                    return data
-            except json.JSONDecodeError:
-                continue
-    except Exception as e:
-        print(f"[Flashcards] Regex parsing error: {e}")
+        start = cleaned.find('[')
+        if start != -1:
+            depth = 0
+            end = start
+            for i, c in enumerate(cleaned[start:], start):
+                if c == '[':
+                    depth += 1
+                elif c == ']':
+                    depth -= 1
+                    if depth == 0:
+                        end = i + 1
+                        break
+            
+            json_str = cleaned[start:end]
+            json_str = re.sub(r',\s*([\]\}])', r'\1', json_str)
+            
+            data = json.loads(json_str)
+            if isinstance(data, list) and len(data) > 0:
+                return data
+    except (json.JSONDecodeError, Exception):
+        pass
     
-    # Strategy 3: Text fallback
+    # Regex extraction fallback
+    try:
+        flashcards = []
+        pattern = r'\{\s*"front"\s*:\s*"([^"]+)"\s*,\s*"back"\s*:\s*"([^"]+)"\s*\}'
+        matches = re.findall(pattern, response_text)
+        for front, back in matches:
+            flashcards.append({"front": front, "back": back})
+        
+        if flashcards:
+            return flashcards
+    except Exception:
+        pass
+    
+    # Text format fallback
     flashcards = []
     lines = response_text.strip().split('\n')
     current_front = None
     
     for line in lines:
         line = line.strip()
-        if not line: continue
-        # Handle various Q/A formats
+        if not line:
+            continue
         if re.match(r'^(Q|Front|Question)\d?[:\.]', line, re.I):
-             parts = re.split(r'[:\.]', line, 1)
-             if len(parts) > 1: current_front = parts[1].strip()
+            parts = re.split(r'[:\.]', line, 1)
+            if len(parts) > 1:
+                current_front = parts[1].strip()
         elif re.match(r'^(A|Back|Answer)\d?[:\.]', line, re.I) and current_front:
-             parts = re.split(r'[:\.]', line, 1)
-             if len(parts) > 1:
-                 back = parts[1].strip()
-                 flashcards.append({"front": current_front, "back": back})
-                 current_front = None
+            parts = re.split(r'[:\.]', line, 1)
+            if len(parts) > 1:
+                back = parts[1].strip()
+                flashcards.append({"front": current_front, "back": back})
+                current_front = None
     
-    if flashcards:
-        print(f"[Flashcards] Parsed {len(flashcards)} cards via text fallback")
-        return flashcards
-
-    print("[Flashcards] Failed to parse any flashcards")
-    return []
+    return flashcards
 
 
 @router.get("/conversations/{conversation_id}/flashcards", response_model=FlashcardListResponse)
@@ -160,44 +192,70 @@ async def generate_flashcards(
     # Adjust prompt for local mode to be faster (fewer cards)
     base_prompt = FLASHCARD_PROMPT
     if is_local:
-        # Force strict behavior for local model
-        # NOTE: JSON braces must be doubled ({{ }}) to escape them in Python's .format()
-        base_prompt = """Based on the document content, generate exactly 10 flashcards.
-IMPORTANT: Respond with a raw JSON list ONLY. Do not write "Here are the flashcards" or any other text.
-Format:
-[
-    {{"front": "Question?", "back": "Answer"}},
-    ...
-]
+        # Force strict behavior for local model - very clear prompt
+        # Calculate space for existing questions (reserve ~500 chars for deduplication)
+        max_context_len = 3500
+        truncated_context = context[:max_context_len]
+        
+        # Build deduplication instruction if there are existing questions
+        dedup_instruction = ""
+        if existing_questions:
+            # Truncate existing questions to fit within remaining context budget
+            existing_qs_text = "; ".join(existing_questions[-15:])  # Last 15 questions
+            if len(existing_qs_text) > 300:
+                existing_qs_text = existing_qs_text[:300] + "..."
+            dedup_instruction = f"\n\nAVOID these existing questions: {existing_qs_text}"
+        
+        prompt = f"""You are a flashcard generator. Create 6-8 high-quality study flashcards from the document below.
 
-Content:
-{context}
-"""
-        print(f"[Local Mode] Using strict 5-card JSON prompt. Context len: {len(context)}")
-    else:
-        print(f"[Cloud Mode] Using standard prompt. Context len: {len(context)}")
+RULES:
+1. "front" = A clear, specific QUESTION about a key concept, skill, or fact
+2. "back" = A precise, informative ANSWER (not just a name or single word)
+3. Focus on: definitions, explanations, key concepts, technical terms, important facts
+4. Questions should test understanding, not just recall names
+5. Answers should be educational and explain the concept
 
-    # Build prompt with existing questions to avoid
-    if existing_questions:
-        questions_list = "\n".join([f"- {q}" for q in existing_questions])
-        prompt = base_prompt.format(context=context) + f"\n\nDo NOT reuse these questions:\n{questions_list}"
+BAD examples (avoid these):
+- "Who created X?" -> "Person" (too vague, not educational)
+- "What is the name of...?" -> "Some name" (useless for learning)
+
+GOOD examples:
+- "What is LoRA in machine learning?" -> "LoRA (Low-Rank Adaptation) is a technique for efficiently fine-tuning large language models by adding small trainable matrices to attention layers, reducing memory and compute requirements while maintaining model quality."
+- "What does RAG stand for and what is it used for?" -> "RAG (Retrieval-Augmented Generation) combines document retrieval with LLM generation to answer questions using external knowledge sources, improving accuracy and reducing hallucinations."
+
+Output ONLY valid JSON array, no other text:
+[{{"front": "Question?", "back": "Detailed educational answer"}}]{dedup_instruction}
+
+Document:
+{truncated_context}"""
     else:
-        prompt = base_prompt.format(context=context)
+        # Build prompt with existing questions to avoid
+        if existing_questions:
+            questions_list = "\n".join([f"- {q}" for q in existing_questions])
+            prompt = base_prompt.format(context=context) + f"\n\nDo NOT reuse these questions:\n{questions_list}"
+        else:
+            prompt = base_prompt.format(context=context)
     
     llm_client = get_llm_client(conversation.llm_mode, request.cloud_model)
     
     try:
-        result = await llm_client.generate_response(
-            prompt,
-            [],
-            [],
-            ""
+        if is_local:
+            async with LocalModeLock(timeout=180.0):
+                response_text = await llm_client.generate_simple_response(prompt)
+        else:
+            result = await llm_client.generate_response(
+                prompt,
+                [],
+                [],
+                ""
+            )
+            response_text = result.get("response", "")
+    except TimeoutError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Ollama is busy with another request. Please wait a moment and try again."
         )
-        response_text = result.get("response", "")
-        response_text = result.get("response", "")
     except Exception as e:
-        import traceback
-        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to generate flashcards: {str(e)}"

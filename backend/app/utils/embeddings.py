@@ -1,19 +1,341 @@
+"""
+Embedding and Vector Search utilities using Qdrant + Sentence Transformers.
+
+This module provides:
+- QdrantVectorStore: Manages embeddings in Qdrant vector database
+- HybridRAGProcessor: Combines document RAG + chat history for context building
+"""
+
 import json
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
-import numpy as np
+import uuid
 from typing import List, Dict, Sequence, Optional
-from ..config import CHUNK_SIZE, CHUNK_OVERLAP
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from sentence_transformers import SentenceTransformer
+from qdrant_client import QdrantClient
+from qdrant_client.http import models
+from qdrant_client.http.models import Distance, VectorParams, PointStruct, Filter, FieldCondition, MatchValue
+
+from ..config import (
+    CHUNK_SIZE, CHUNK_OVERLAP, 
+    QDRANT_HOST, QDRANT_PORT, QDRANT_COLLECTION_NAME,
+    EMBEDDING_MODEL, EMBEDDING_DIMENSION
+)
+
+# Global embedding model instance (loaded once)
+_embedding_model: Optional[SentenceTransformer] = None
+_qdrant_client: Optional[QdrantClient] = None
+_qdrant_initialized: bool = False
+
+def get_embedding_model() -> SentenceTransformer:
+    """Get or initialize the sentence transformer model (singleton pattern)."""
+    global _embedding_model
+    if _embedding_model is None:
+        print(f"[Embeddings] Loading model: {EMBEDDING_MODEL}")
+        _embedding_model = SentenceTransformer(EMBEDDING_MODEL, trust_remote_code=True)
+        print(f"[Embeddings] Model loaded successfully")
+    return _embedding_model
+
+
+def get_qdrant_client() -> QdrantClient:
+    """Get Qdrant client instance (singleton pattern).
+    
+    Tries to connect to external Qdrant server first.
+    Falls back to local disk-based storage if connection fails.
+    """
+    global _qdrant_client
+    
+    if _qdrant_client is not None:
+        return _qdrant_client
+    
+    try:
+        client = QdrantClient(host=QDRANT_HOST, port=QDRANT_PORT, timeout=3)
+        # Test connection
+        client.get_collections()
+        print(f"[Qdrant] Connected to {QDRANT_HOST}:{QDRANT_PORT}")
+        _qdrant_client = client
+    except Exception as e:
+        print(f"[Qdrant] External server not available: {e}")
+        print("[Qdrant] Using local disk-based storage instead")
+        # Use local disk-based storage (persisted to ./qdrant_data)
+        from pathlib import Path
+        qdrant_path = Path(__file__).parent.parent.parent / "qdrant_data"
+        qdrant_path.mkdir(exist_ok=True)
+        _qdrant_client = QdrantClient(path=str(qdrant_path))
+        print(f"[Qdrant] Local storage initialized at: {qdrant_path}")
+    
+    return _qdrant_client
+
+
+def ensure_collection_exists(client: QdrantClient, collection_name: str = QDRANT_COLLECTION_NAME):
+    """Create collection if it doesn't exist."""
+    global _qdrant_initialized
+    
+    # Skip if already initialized in this session
+    if _qdrant_initialized:
+        return
+    
+    try:
+        collections = client.get_collections().collections
+        exists = any(c.name == collection_name for c in collections)
+        
+        if not exists:
+            print(f"[Qdrant] Creating collection: {collection_name}")
+            client.create_collection(
+                collection_name=collection_name,
+                vectors_config=VectorParams(
+                    size=EMBEDDING_DIMENSION,
+                    distance=Distance.COSINE
+                )
+            )
+            print(f"[Qdrant] Collection created")
+        
+        _qdrant_initialized = True
+    except Exception as e:
+        # Do NOT set _qdrant_initialized on error - allow retries
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.exception("Error ensuring Qdrant collection")
+        raise  # Re-raise to let callers fail fast
+
+
+class QdrantVectorStore:
+    """
+    Vector store using Qdrant for document embeddings.
+    Uses conversation_id for multi-tenant filtering.
+    """
+    
+    def __init__(self, conversation_id: int):
+        self.conversation_id = conversation_id
+        self.client = get_qdrant_client()
+        self.model = get_embedding_model()
+        self.collection_name = QDRANT_COLLECTION_NAME
+        self.text_splitter = RecursiveCharacterTextSplitter(
+            chunk_size=CHUNK_SIZE,
+            chunk_overlap=CHUNK_OVERLAP,
+            length_function=len,
+        )
+        ensure_collection_exists(self.client, self.collection_name)
+    
+    def embed_text(self, text: str) -> List[float]:
+        """Generate embedding for a single text."""
+        return self.model.encode(text).tolist()
+    
+    def embed_texts(self, texts: List[str]) -> List[List[float]]:
+        """Generate embeddings for multiple texts (batched)."""
+        return self.model.encode(texts).tolist()
+    
+    def add_documents(
+        self, 
+        text_data: Dict[str, str], 
+        document_ids: Optional[Dict[str, int]] = None
+    ) -> tuple:
+        """
+        Add documents to vector store.
+        
+        Args:
+            text_data: Dict mapping source name to text content
+            document_ids: Optional dict mapping source name to document_id
+            
+        Returns:
+            Tuple of (chunk_count, texts, metadatas) where texts and metadatas 
+            can be reused by EmbeddingProcessor for SQLite storage
+        """
+        texts = []
+        metadatas = []
+        
+        for source, text in text_data.items():
+            chunks = self.text_splitter.split_text(text)
+            doc_id = document_ids.get(source) if document_ids else None
+            
+            for i, chunk in enumerate(chunks):
+                texts.append(chunk)
+                metadatas.append({
+                    "source": source,
+                    "chunk_index": i,
+                    "chunk_id": i,  # Include chunk_id for EmbeddingProcessor compatibility
+                    "document_id": doc_id,
+                    "conversation_id": self.conversation_id,
+                    "type": "document"
+                })
+        
+        if not texts:
+            return 0, [], []
+        
+        # Generate embeddings in batch
+        print(f"[Qdrant] Generating embeddings for {len(texts)} chunks...")
+        embeddings = self.embed_texts(texts)
+        
+        # Create points for Qdrant
+        points = []
+        for i, (text, embedding, metadata) in enumerate(zip(texts, embeddings, metadatas)):
+            point_id = str(uuid.uuid4())
+            points.append(PointStruct(
+                id=point_id,
+                vector=embedding,
+                payload={
+                    **metadata,
+                    "content": text
+                }
+            ))
+        
+        # Upsert to Qdrant in batches
+        batch_size = 100
+        for i in range(0, len(points), batch_size):
+            batch = points[i:i + batch_size]
+            self.client.upsert(
+                collection_name=self.collection_name,
+                points=batch
+            )
+        
+        print(f"[Qdrant] Added {len(points)} vectors to collection")
+        return len(points), texts, metadatas
+    
+    def search(
+        self, 
+        query: str, 
+        k: int = 5,
+        document_ids: Optional[List[int]] = None
+    ) -> List[Dict]:
+        """
+        Semantic search in vector store.
+        
+        Args:
+            query: Search query
+            k: Number of results
+            document_ids: Optional list of document_ids to filter (for active documents)
+            
+        Returns:
+            List of results with content, metadata, and score
+        """
+        try:
+            query_embedding = self.embed_text(query)
+            
+            # Build filter conditions
+            must_conditions = [
+                FieldCondition(
+                    key="conversation_id",
+                    match=MatchValue(value=self.conversation_id)
+                )
+            ]
+            
+            # Add document filter if specified
+            if document_ids:
+                must_conditions.append(
+                    models.FieldCondition(
+                        key="document_id",
+                        match=models.MatchAny(any=document_ids)
+                    )
+                )
+            
+            search_filter = Filter(must=must_conditions)
+            
+            # Use query_points instead of search (newer qdrant-client API)
+            results = self.client.query_points(
+                collection_name=self.collection_name,
+                query=query_embedding,
+                query_filter=search_filter,
+                limit=k,
+                with_payload=True
+            )
+            
+            # Extract points from QueryResponse
+            points = results.points if hasattr(results, 'points') else results
+            
+            # Build results with adjusted scores
+            # Significantly boost longer chunks to prefer detailed content over short index entries
+            # Index entries are typically <100 chars, detailed sections are 300+ chars
+            raw_results = []
+            for hit in points:
+                content = hit.payload.get("content", "")
+                content_length = len(content)
+                
+                # Apply content length boost:
+                # - Very short (<100 chars): likely index entry, penalize with -0.05
+                # - Short (100-200 chars): neutral
+                # - Medium (200-400 chars): small boost +0.03
+                # - Long (400+ chars): good boost up to +0.08
+                if content_length < 100:
+                    length_boost = -0.05  # Penalize very short (index-like) entries
+                elif content_length < 200:
+                    length_boost = 0
+                elif content_length < 400:
+                    length_boost = 0.03
+                else:
+                    # Boost scales with length, max +0.08 for 800+ char chunks
+                    length_boost = min(content_length / 10000, 0.08)
+                
+                adjusted_score = hit.score + length_boost
+                
+                raw_results.append({
+                    "content": content,
+                    "metadata": {
+                        "source": hit.payload.get("source", "Unknown"),
+                        "chunk_index": hit.payload.get("chunk_index", 0),
+                        "document_id": hit.payload.get("document_id"),
+                        "type": hit.payload.get("type", "document")
+                    },
+                    "score": adjusted_score,
+                    "raw_score": hit.score
+                })
+            
+            # Re-sort by adjusted score
+            raw_results.sort(key=lambda x: x["score"], reverse=True)
+            
+            return raw_results
+        except Exception as e:
+            print(f"[Qdrant] Search error: {e}")
+            import traceback
+            traceback.print_exc()
+            return []
+    
+    def delete_by_document(self, document_id: int) -> int:
+        """Delete all vectors for a specific document."""
+        result = self.client.delete(
+            collection_name=self.collection_name,
+            points_selector=models.FilterSelector(
+                filter=Filter(
+                    must=[
+                        FieldCondition(
+                            key="conversation_id",
+                            match=MatchValue(value=self.conversation_id)
+                        ),
+                        FieldCondition(
+                            key="document_id",
+                            match=MatchValue(value=document_id)
+                        )
+                    ]
+                )
+            )
+        )
+        print(f"[Qdrant] Deleted vectors for document {document_id}")
+        return 1  # Qdrant doesn't return count
+    
+    def delete_by_conversation(self) -> int:
+        """Delete all vectors for this conversation."""
+        result = self.client.delete(
+            collection_name=self.collection_name,
+            points_selector=models.FilterSelector(
+                filter=Filter(
+                    must=[
+                        FieldCondition(
+                            key="conversation_id",
+                            match=MatchValue(value=self.conversation_id)
+                        )
+                    ]
+                )
+            )
+        )
+        print(f"[Qdrant] Deleted all vectors for conversation {self.conversation_id}")
+        return 1
+
 
 class EmbeddingProcessor:
+    """
+    Legacy-compatible wrapper around QdrantVectorStore.
+    Used during upload to process and store documents.
+    """
+    
     def __init__(self):
-        # Use TF-IDF instead of sentence-transformers (lightweight)
-        self.vectorizer = TfidfVectorizer(
-            max_features=1000,
-            stop_words='english',
-            ngram_range=(1, 2)
-        )
         self.text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=CHUNK_SIZE,
             chunk_overlap=CHUNK_OVERLAP,
@@ -21,9 +343,24 @@ class EmbeddingProcessor:
         )
         self.texts = []
         self.metadatas = []
-        self.embeddings = None
     
-    def create_vector_store(self, text_data: Dict[str, str]):
+    def create_vector_store(self, text_data: Dict[str, str], precomputed_texts: List[str] = None, precomputed_metadatas: List[Dict] = None):
+        """
+        Process documents and prepare for storage.
+        Note: Actual Qdrant storage happens in upload route with conversation_id.
+        
+        Args:
+            text_data: Dict mapping source name to text content (used if no precomputed data)
+            precomputed_texts: Optional pre-chunked texts (reuse from Qdrant processing)
+            precomputed_metadatas: Optional pre-computed metadata (reuse from Qdrant processing)
+        """
+        # If precomputed data is provided, use it directly to avoid duplicate chunking
+        if precomputed_texts is not None and precomputed_metadatas is not None:
+            self.texts = precomputed_texts
+            self.metadatas = precomputed_metadatas
+            return self
+        
+        # Otherwise, process from scratch
         texts = []
         metadatas = []
         
@@ -40,125 +377,57 @@ class EmbeddingProcessor:
         if not texts:
             raise ValueError("No documents to process")
         
-        # Create TF-IDF embeddings (lightweight)
-        embeddings = self.vectorizer.fit_transform(texts)
-        
-        # Store data
         self.texts = texts
         self.metadatas = metadatas
-        self.embeddings = embeddings
         
         return self
-
-    def load_from_chunks(self, chunks: Sequence[Dict]):
-        if not chunks:
-            raise ValueError("No chunks available for vector store")
-
-        texts = []
-        metadatas = []
-
-        for chunk in chunks:
-            texts.append(chunk["content"])
-            metadata = chunk.get("metadata_json")
-            if isinstance(metadata, str):
-                try:
-                    metadata = json.loads(metadata)
-                except Exception:
-                    metadata = {"source": "unknown", "chunk_id": chunk.get("chunk_index", 0)}
-            metadata["type"] = "document"
-            metadatas.append(metadata)
-
-        embeddings = self.vectorizer.fit_transform(texts)
-        self.texts = texts
-        self.metadatas = metadatas
-        self.embeddings = embeddings
-
-        return self
-    
-    def search_similar(self, query: str, k: int = 3, filter_type: Optional[str] = None) -> List[Dict]:
-        if self.embeddings is None:
-            return []
-            
-        # Transform query using same vectorizer
-        query_embedding = self.vectorizer.transform([query])
-        
-        # Calculate cosine similarity
-        similarities = cosine_similarity(query_embedding, self.embeddings).flatten()
-        top_indices = np.argsort(similarities)[::-1]
-        
-        # Get diverse results - try to include results from different sources
-        results = []
-        sources_seen = set()
-        
-        # First pass: get top results from different sources
-        for idx in top_indices:
-            # Apply type filter if specified
-            if filter_type and self.metadatas[idx].get("type") != filter_type:
-                continue
-                
-            source = self.metadatas[idx].get("source", "unknown")
-            if source not in sources_seen and len(results) < k:
-                results.append({
-                    "content": self.texts[idx],
-                    "metadata": self.metadatas[idx],
-                    "score": float(similarities[idx])
-                })
-                sources_seen.add(source)
-        
-        # Second pass: fill remaining slots with best remaining results
-        for idx in top_indices:
-            if len(results) >= k:
-                break
-            
-            # Apply type filter if specified
-            if filter_type and self.metadatas[idx].get("type") != filter_type:
-                continue
-            
-            # Check if this result is already included
-            is_duplicate = any(
-                r["content"] == self.texts[idx] for r in results
-            )
-            
-            if not is_duplicate:
-                results.append({
-                    "content": self.texts[idx],
-                    "metadata": self.metadatas[idx],
-                    "score": float(similarities[idx])
-                })
-        
-        return results
 
 
 class HybridRAGProcessor:
     """
     Hybrid RAG processor that combines:
-    1. Document chunks RAG
-    2. Chat history RAG
+    1. Document chunks from Qdrant (semantic search)
+    2. Chat history context
     3. Recent conversation context
     """
     
-    def __init__(self):
-        self.document_processor = None
-        self.chat_processor = None
+    def __init__(self, conversation_id: Optional[int] = None):
+        self.conversation_id = conversation_id
+        self.vector_store: Optional[QdrantVectorStore] = None
+        self.active_document_ids: Optional[List[int]] = None
+        self._fallback_chunks: Sequence[Dict] = []
         self.text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=300,  # Smaller chunks for chat history
+            chunk_size=300,
             chunk_overlap=50,
             length_function=len,
         )
+        self._chat_texts = []
+        self._chat_metadatas = []
     
-    def load_documents(self, chunks: Sequence[Dict]):
-        """Load document chunks into the document processor"""
-        if not chunks:
-            return self
+    def load_documents(self, chunks: Sequence[Dict] = None, document_ids: List[int] = None):
+        """
+        Initialize vector store for document search.
         
-        self.document_processor = EmbeddingProcessor()
-        self.document_processor.load_from_chunks(chunks)
+        Args:
+            chunks: SQLite chunks as fallback (used if Qdrant returns no results)
+            document_ids: List of active document IDs to filter search
+        """
+        # Store SQLite chunks as fallback
+        self._fallback_chunks = chunks or []
+        
+        if self.conversation_id:
+            try:
+                self.vector_store = QdrantVectorStore(self.conversation_id)
+                self.active_document_ids = document_ids
+            except Exception as e:
+                print(f"[RAG] Error initializing Qdrant: {e}")
+                self.vector_store = None
         return self
     
     def load_chat_history(self, chat_messages: List[Dict]):
         """
-        Load chat history into the chat processor
-        Each message pair (user + assistant) is treated as a searchable unit
+        Load chat history for context.
+        Uses in-memory embedding for chat (not stored in Qdrant).
         """
         if not chat_messages:
             return self
@@ -166,13 +435,11 @@ class HybridRAGProcessor:
         texts = []
         metadatas = []
         
-        # Group messages into Q&A pairs for better context retrieval
         i = 0
         while i < len(chat_messages):
             msg = chat_messages[i]
             
             if msg["role"] == "user":
-                # Look for the assistant response
                 user_content = msg["content"]
                 assistant_content = ""
                 
@@ -180,10 +447,8 @@ class HybridRAGProcessor:
                     assistant_content = chat_messages[i + 1]["content"]
                     i += 1
                 
-                # Create a combined Q&A chunk
-                combined = f"User asked: {user_content}\n\nAssistant answered: {assistant_content[:500]}"  # Limit assistant response
+                combined = f"User asked: {user_content}\n\nAssistant answered: {assistant_content[:500]}"
                 
-                # Split if too long
                 chunks = self.text_splitter.split_text(combined)
                 for chunk_idx, chunk in enumerate(chunks):
                     texts.append(chunk)
@@ -196,18 +461,40 @@ class HybridRAGProcessor:
                     })
             i += 1
         
-        if texts:
-            self.chat_processor = EmbeddingProcessor()
-            self.chat_processor.vectorizer = TfidfVectorizer(
-                max_features=500,
-                stop_words='english',
-                ngram_range=(1, 2)
-            )
-            self.chat_processor.texts = texts
-            self.chat_processor.metadatas = metadatas
-            self.chat_processor.embeddings = self.chat_processor.vectorizer.fit_transform(texts)
+        self._chat_texts = texts
+        self._chat_metadatas = metadatas
         
         return self
+    
+    def _search_chat_history(self, query: str, k: int = 3) -> List[Dict]:
+        """Search chat history using embedding similarity."""
+        if not self._chat_texts:
+            return []
+        
+        model = get_embedding_model()
+        query_emb = model.encode(query)
+        text_embs = model.encode(self._chat_texts)
+        
+        # Compute cosine similarities with epsilon to guard against zero-norm division
+        import numpy as np
+        epsilon = 1e-8
+        text_norms = np.linalg.norm(text_embs, axis=1)
+        query_norm = np.linalg.norm(query_emb)
+        # Add epsilon to prevent division by zero
+        similarities = np.dot(text_embs, query_emb) / (
+            np.maximum(text_norms, epsilon) * max(query_norm, epsilon)
+        )
+        
+        top_indices = np.argsort(similarities)[::-1][:k]
+        
+        return [
+            {
+                "content": self._chat_texts[idx],
+                "metadata": self._chat_metadatas[idx],
+                "score": float(similarities[idx])
+            }
+            for idx in top_indices
+        ]
     
     def hybrid_search(
         self, 
@@ -219,7 +506,7 @@ class HybridRAGProcessor:
     ) -> Dict:
         """
         Perform hybrid search combining:
-        1. Relevant document chunks
+        1. Relevant document chunks from Qdrant
         2. Relevant past Q&A from chat history
         3. Most recent messages for conversational context
         """
@@ -229,13 +516,42 @@ class HybridRAGProcessor:
             "recent_context": []
         }
         
-        # 1. Search document chunks
-        if self.document_processor:
-            results["document_chunks"] = self.document_processor.search_similar(query, k=doc_k)
+        # 1. Search document chunks in Qdrant
+        if self.vector_store:
+            results["document_chunks"] = self.vector_store.search(
+                query=query,
+                k=doc_k,
+                document_ids=self.active_document_ids
+            )
         
-        # 2. Search relevant past conversations (excluding very recent ones)
-        if self.chat_processor and len(chat_history) > recent_messages:
-            results["relevant_chat_history"] = self.chat_processor.search_similar(query, k=chat_k)
+        # Fallback to SQLite chunks if Qdrant returned no results
+        if not results["document_chunks"] and hasattr(self, '_fallback_chunks') and self._fallback_chunks:
+            print("[RAG] Qdrant returned no results, using SQLite fallback")
+            # Use first N chunks from SQLite as fallback
+            fallback_results = []
+            for i, chunk in enumerate(self._fallback_chunks[:doc_k]):
+                content = chunk.get("content", "")
+                metadata = chunk.get("metadata_json", {})
+                if isinstance(metadata, str):
+                    try:
+                        import json
+                        metadata = json.loads(metadata)
+                    except:
+                        metadata = {}
+                fallback_results.append({
+                    "content": content,
+                    "metadata": {
+                        "source": metadata.get("source", "Document"),
+                        "chunk_index": chunk.get("chunk_index", i),
+                        "type": "document"
+                    },
+                    "score": 0.5  # Default score for fallback
+                })
+            results["document_chunks"] = fallback_results
+        
+        # 2. Search relevant past conversations
+        if self._chat_texts and len(chat_history) > recent_messages:
+            results["relevant_chat_history"] = self._search_chat_history(query, k=chat_k)
         
         # 3. Get most recent messages for conversational context
         if chat_history:
@@ -252,9 +568,7 @@ class HybridRAGProcessor:
         chat_k: int = 3,
         recent_messages: int = 8
     ) -> Dict:
-        """
-        Build a comprehensive context for the LLM combining all sources
-        """
+        """Build a comprehensive context for the LLM combining all sources."""
         search_results = self.hybrid_search(query, chat_history, doc_k, chat_k, recent_messages)
         
         context_parts = []

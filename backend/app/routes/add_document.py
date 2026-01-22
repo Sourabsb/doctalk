@@ -1,12 +1,15 @@
 import json
+import logging
 from datetime import datetime
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
 from sqlalchemy.orm import Session
 from typing import List
 
 from ..models.schemas import UploadResponse
+
+logger = logging.getLogger(__name__)
 from ..utils.document_processor import DocumentProcessor
-from ..utils.embeddings import EmbeddingProcessor
+from ..utils.embeddings import EmbeddingProcessor, QdrantVectorStore
 from ..config import MAX_FILE_SIZE
 from ..dependencies import get_db, get_current_user
 from ..models.db_models import Conversation, Document, DocumentChunk
@@ -34,7 +37,6 @@ async def add_documents_to_conversation(
         
         # Process new files
         processor = DocumentProcessor()
-        embedding_processor = EmbeddingProcessor()
         
         all_text_data = {}
         processed_files = []
@@ -71,24 +73,54 @@ async def add_documents_to_conversation(
                 raise HTTPException(status_code=400, detail="No text extracted from files")
         
         try:
-            # Create vector store for new documents
-            vector_store = embedding_processor.create_vector_store(all_text_data)
-
-            # Add new document records
+            # Add new document records first (need document IDs for Qdrant)
             unique_files = list(dict.fromkeys(processed_files))
             document_map = {}
+            source_to_doc_id = {}  # Map source names to document IDs for Qdrant
+            
             for filename in unique_files:
                 document = Document(
                     conversation_id=conversation.id, 
                     filename=filename,
-                    content=file_contents.get(filename, "")  # Store the extracted text
+                    content=file_contents.get(filename, "")
                 )
                 db.add(document)
                 db.flush()
                 document_map[filename] = document
+                
+                # Map all source variations to this document ID using robust stem
+                source_to_doc_id[filename] = document.id
+                # Get filename stem: "file.name.pdf" -> "file.name"
+                filename_stem = filename.rsplit('.', 1)[0] if '.' in filename else filename
+                source_to_doc_id[filename_stem] = document.id
+                for source in all_text_data.keys():
+                    # Match exact filename or sources that start with stem followed by underscore/dot/end
+                    source_stem = source.rsplit('.', 1)[0] if '.' in source else source
+                    # Also handle page-based sources like "file.name.pdf_page_1"
+                    source_base = source.split('_page_')[0]
+                    source_base_stem = source_base.rsplit('.', 1)[0] if '.' in source_base else source_base
+                    if source == filename or source_base == filename or source_base_stem == filename_stem:
+                        source_to_doc_id[source] = document.id
+            
+            # Check for unmapped sources and log warnings (do not silently fallback)
+            available_doc_ids = {fn: doc.id for fn, doc in document_map.items()}
+            for source in all_text_data.keys():
+                if source not in source_to_doc_id:
+                    logger.warning(
+                        "Unmapped source '%s' could not be matched to any document. "
+                        "Available documents: %s. Source will be skipped for document association.",
+                        source,
+                        available_doc_ids
+                    )
 
-            # Add new chunks
-            for idx, metadata in enumerate(vector_store.metadatas):
+            vector_store = QdrantVectorStore(conversation.id)
+            chunk_count, qdrant_texts, qdrant_metadatas = vector_store.add_documents(all_text_data, source_to_doc_id)
+
+            # Save chunks to SQLite for metadata backup
+            embedding_processor = EmbeddingProcessor()
+            embedding_processor.create_vector_store(all_text_data, precomputed_texts=qdrant_texts, precomputed_metadatas=qdrant_metadatas)
+            
+            for idx, metadata in enumerate(embedding_processor.metadatas):
                 source = metadata.get("source", processed_files[0]) if processed_files else metadata.get("source", "Unknown")
                 filename_key = source.split("_page_")[0]
                 document = document_map.get(filename_key) or document_map.get(source)
@@ -96,7 +128,7 @@ async def add_documents_to_conversation(
                     conversation_id=conversation.id,
                     document_id=document.id if document else None,
                     chunk_index=metadata.get("chunk_id", idx),
-                    content=vector_store.texts[idx],
+                    content=embedding_processor.texts[idx],
                     metadata_json=json.dumps(metadata)
                 )
                 db.add(chunk)

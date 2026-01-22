@@ -70,7 +70,7 @@ Thumbs.db
 *.sqlite
 *.sqlite3
 /backend/app.db
-/backend/chroma_db/
+/backend/qdrant_data/
 /backend/uploads/
 
 # Session data

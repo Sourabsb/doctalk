@@ -20,6 +20,7 @@ const Dashboard = () => {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false)
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
   const [deleteConfirmId, setDeleteConfirmId] = useState(null)
+  const [isDeleting, setIsDeleting] = useState(false)
   const [activeTab, setActiveTab] = useState('all')
   const [viewMode, setViewMode] = useState('grid')
   const [sortBy, setSortBy] = useState('recent')
@@ -73,6 +74,7 @@ const Dashboard = () => {
   }
 
   const handleDeleteConversation = async (conversationId) => {
+    setIsDeleting(true)
     try {
       await deleteConversation(conversationId)
       if (activeConversationId === conversationId) {
@@ -81,6 +83,9 @@ const Dashboard = () => {
       refreshConversations()
     } catch (error) {
       console.error('Failed to delete conversation', error)
+    } finally {
+      setIsDeleting(false)
+      setDeleteConfirmId(null)
     }
   }
 
@@ -526,32 +531,46 @@ const Dashboard = () => {
       {deleteConfirmId && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm">
           <div className={`w-full max-w-sm mx-4 rounded-2xl shadow-2xl ${isDark ? 'bg-[#1a1a1a] border border-white/10' : 'bg-white border border-gray-200'} p-6`}>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 rounded-full bg-red-500/10">
-                <svg className="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
+            {isDeleting ? (
+              <div className="flex flex-col items-center py-4">
+                <div className="relative w-12 h-12 mb-4">
+                  <div className={`absolute inset-0 rounded-full border-2 border-t-transparent animate-spin ${isDark ? 'border-red-400' : 'border-red-500'}`} />
+                  <div className="absolute inset-2 flex items-center justify-center">
+                    <svg className={`w-5 h-5 ${isDark ? 'text-red-400' : 'text-red-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </div>
+                </div>
+                <p className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>Deleting notebook...</p>
+                <p className={`text-sm mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Please wait</p>
               </div>
-              <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Delete Notebook?</h3>
-            </div>
-            <p className={`mb-6 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Are you sure you want to delete this notebook? This action cannot be undone.</p>
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => setDeleteConfirmId(null)}
-                className={`px-4 py-2 rounded-lg transition ${isDark ? 'bg-white/5 hover:bg-white/10 text-gray-300' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  handleDeleteConversation(deleteConfirmId)
-                  setDeleteConfirmId(null)
-                }}
-                className="px-4 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white transition"
-              >
-                Delete
-              </button>
-            </div>
+            ) : (
+              <>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2 rounded-full bg-red-500/10">
+                    <svg className="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                  </div>
+                  <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Delete Notebook?</h3>
+                </div>
+                <p className={`mb-6 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Are you sure you want to delete this notebook? This action cannot be undone.</p>
+                <div className="flex justify-end gap-3">
+                  <button
+                    onClick={() => setDeleteConfirmId(null)}
+                    className={`px-4 py-2 rounded-lg transition ${isDark ? 'bg-white/5 hover:bg-white/10 text-gray-300' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => handleDeleteConversation(deleteConfirmId)}
+                    className="px-4 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white transition"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

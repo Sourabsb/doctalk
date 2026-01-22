@@ -7,6 +7,7 @@ import json
 from ..models.schemas import ChatRequest, ChatResponse, ChatMessageResponse, ResponseVariant
 from ..utils.embeddings import HybridRAGProcessor
 from ..utils.llm_router import get_llm_client
+from ..utils.ollama_client import LLMRequestContext, LocalModeLock, acquire_llm_lock, release_llm_lock
 from ..dependencies import get_db, get_current_user
 from ..models.db_models import Conversation, DocumentChunk, ChatMessage, Document
 from ..database import SessionLocal
@@ -194,9 +195,9 @@ async def chat(
     max_history = 10 if conversation.llm_mode == "local" else 50
     chat_history = _build_branch_chat_history(db, conversation.id, parent_reply_to, max_history)
 
-    # Initialize Hybrid RAG Processor
-    hybrid_rag = HybridRAGProcessor()
-    hybrid_rag.load_documents(chunk_dicts)
+    # Initialize Hybrid RAG Processor with Qdrant
+    hybrid_rag = HybridRAGProcessor(conversation_id=conversation.id)
+    hybrid_rag.load_documents(chunks=chunk_dicts, document_ids=active_doc_ids if active_doc_ids else None)
     hybrid_rag.load_chat_history(chat_history)
 
     llm_client = get_llm_client(conversation.llm_mode, chat_request.cloud_model)
@@ -240,13 +241,29 @@ async def chat(
     # Combine hybrid context with document availability info
     combined_context = context_result.get("combined_context", "") + doc_context_info
     
+    # Use queue to serialize LLM requests per conversation
+    # For local mode, use global lock to prevent concurrent Ollama requests
+    is_local = (conversation.llm_mode or "api") == "local"
     try:
-        result = await llm_client.generate_response(
-            chat_request.message,
-            formatted_context_docs,
-            recent_context,  # Use recent messages for conversational continuity
-            combined_context  # Additional context from hybrid search + doc info
-        )
+        if is_local:
+            async with LocalModeLock(timeout=180.0):
+                async with LLMRequestContext(conversation.id):
+                    result = await llm_client.generate_response(
+                        chat_request.message,
+                        formatted_context_docs,
+                        recent_context,  # Use recent messages for conversational continuity
+                        combined_context  # Additional context from hybrid search + doc info
+                    )
+        else:
+            async with LLMRequestContext(conversation.id):
+                result = await llm_client.generate_response(
+                    chat_request.message,
+                    formatted_context_docs,
+                    recent_context,  # Use recent messages for conversational continuity
+                    combined_context  # Additional context from hybrid search + doc info
+                )
+    except TimeoutError:
+        raise HTTPException(status_code=503, detail="Ollama is busy with another request. Please wait and try again.")
     except ValueError as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
@@ -444,9 +461,9 @@ async def chat_stream(
 
     chat_history = _build_branch_chat_history(db, conv_id, parent_reply_to, max_history)
 
-    # Initialize RAG processor and build context
-    hybrid_rag = HybridRAGProcessor()
-    hybrid_rag.load_documents(chunk_dicts)
+    # Initialize RAG processor with Qdrant
+    hybrid_rag = HybridRAGProcessor(conversation_id=conv_id)
+    hybrid_rag.load_documents(chunks=chunk_dicts, document_ids=active_doc_ids if active_doc_ids else None)
     hybrid_rag.load_chat_history(chat_history)
 
     context_result = hybrid_rag.build_context(
@@ -542,69 +559,105 @@ async def chat_stream(
         
         db.commit()
 
-
     async def generate_stream():
         full_response = ""
+        error_occurred = False
         
         # Send initial metadata
         yield f"data: {json.dumps({'type': 'meta', 'sources': sources, 'source_chunks': source_chunks, 'user_message_id': user_message_id, 'edit_group_id': edit_group_id})}\n\n"
         
-        # Check if streaming is supported (local mode)
-        if hasattr(llm_client, 'generate_response_stream'):
-            try:
-                async for token in llm_client.generate_response_stream(
-                    chat_request.message,
-                    formatted_context_docs,
-                    recent_context,
-                    combined_context
-                ):
-                    full_response += token
-                    yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
-            except Exception as e:
-                yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
-                return
-        else:
-            # Fallback to non-streaming for API mode
-            try:
-                result = await llm_client.generate_response(
-                    chat_request.message,
-                    formatted_context_docs,
-                    recent_context,
-                    combined_context
-                )
-                full_response = result["response"]
-                # Send in chunks to simulate streaming
-                words = full_response.split(' ')
-                for i, word in enumerate(words):
-                    token = word + (' ' if i < len(words) - 1 else '')
-                    yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
-            except Exception as e:
-                yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
-                return
+        # Acquire LLM lock for this conversation
+        lock_acquired = await acquire_llm_lock(conv_id, timeout=300.0)
+        
+        if not lock_acquired:
+            yield f"data: {json.dumps({'type': 'error', 'message': 'Another request is in progress. Please wait and try again.'})}\n\n"
+            return
+        
+        try:
+            # Check if streaming is supported (local mode)
+            if hasattr(llm_client, 'generate_response_stream'):
+                try:
+                    async for token in llm_client.generate_response_stream(
+                        chat_request.message,
+                        formatted_context_docs,
+                        recent_context,
+                        combined_context
+                    ):
+                        full_response += token
+                        yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
+                except Exception as e:
+                    error_occurred = True
+                    error_message = str(e)
+                    yield f"data: {json.dumps({'type': 'error', 'message': error_message})}\n\n"
+            else:
+                # Fallback to non-streaming for API mode
+                try:
+                    result = await llm_client.generate_response(
+                        chat_request.message,
+                        formatted_context_docs,
+                        recent_context,
+                        combined_context
+                    )
+                    full_response = result["response"]
+                    # Send in chunks to simulate streaming
+                    words = full_response.split(' ')
+                    for i, word in enumerate(words):
+                        token = word + (' ' if i < len(words) - 1 else '')
+                        yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
+                except Exception as e:
+                    error_occurred = True
+                    error_message = str(e)
+                    yield f"data: {json.dumps({'type': 'error', 'message': error_message})}\n\n"
+        finally:
+            # Always release the lock
+            await release_llm_lock(conv_id)
 
-        # Save assistant message after streaming completes
+        # Save assistant message after streaming completes (even on error to prevent orphaned user messages)
         session = SessionLocal()
         try:
-            assistant_message = ChatMessage(
-                conversation_id=conv_id,
-                role="assistant",
-                content=full_response,
-                sources_json="||".join(sources) if sources else None,
-                source_chunks_json=json.dumps(source_chunks) if source_chunks else None,
-                prompt_snapshot=chat_request.message,
-                reply_to_message_id=user_message_id,
-                version_index=1,
-                is_archived=False
-            )
-            session.add(assistant_message)
-            session.query(Conversation).filter(Conversation.id == conv_id).update(
-                {"updated_at": datetime.utcnow()}
-            )
-            session.commit()
-            session.refresh(assistant_message)
-            
-            # Send final message with IDs
-            yield f"data: {json.dumps({'type': 'done', 'assistant_message_id': assistant_message.id, 'full_response': full_response})}\n\n"
+            if error_occurred:
+                # Save partial response with error marker so user message isn't orphaned
+                error_content = full_response if full_response else ""
+                if error_content:
+                    error_content += "\n\n[Error: Response generation failed]"
+                else:
+                    error_content = "[Error: Response generation failed]"
+                assistant_message = ChatMessage(
+                    conversation_id=conv_id,
+                    role="assistant",
+                    content=error_content,
+                    sources_json="||".join(sources) if sources else None,
+                    source_chunks_json=json.dumps(source_chunks) if source_chunks else None,
+                    prompt_snapshot=chat_request.message,
+                    reply_to_message_id=user_message_id,
+                    version_index=1,
+                    is_archived=False
+                )
+                session.add(assistant_message)
+                session.commit()
+                session.refresh(assistant_message)
+                yield f"data: {json.dumps({'type': 'done', 'assistant_message_id': assistant_message.id, 'full_response': error_content, 'error': True})}\n\n"
+            else:
+                assistant_message = ChatMessage(
+                    conversation_id=conv_id,
+                    role="assistant",
+                    content=full_response,
+                    sources_json="||".join(sources) if sources else None,
+                    source_chunks_json=json.dumps(source_chunks) if source_chunks else None,
+                    prompt_snapshot=chat_request.message,
+                    reply_to_message_id=user_message_id,
+                    version_index=1,
+                    is_archived=False
+                )
+                session.add(assistant_message)
+                session.query(Conversation).filter(Conversation.id == conv_id).update(
+                    {"updated_at": datetime.utcnow()}
+                )
+                session.commit()
+                session.refresh(assistant_message)
+                
+                # Send final message with IDs
+                yield f"data: {json.dumps({'type': 'done', 'assistant_message_id': assistant_message.id, 'full_response': full_response})}\n\n"
         finally:
             session.close()
 

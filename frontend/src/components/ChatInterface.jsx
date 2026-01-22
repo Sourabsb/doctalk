@@ -89,6 +89,7 @@ const InlineCitation = ({ number, source, chunkContent, isDark, onCitationClick,
   const [showTooltip, setShowTooltip] = useState(false);
   const buttonRef = useRef(null);
   const [tooltipPosition, setTooltipPosition] = useState('center');
+  const [tooltipVertical, setTooltipVertical] = useState('above'); // 'above' or 'below'
 
   const handleClick = (e) => {
     e.stopPropagation();
@@ -100,27 +101,41 @@ const InlineCitation = ({ number, source, chunkContent, isDark, onCitationClick,
   const handleMouseEnter = () => {
     if (buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
-      const tooltipWidth = 320; // w-80 = 20rem = 320px
+      const tooltipWidth = 280;
+      const tooltipHeight = 250;
+      const margin = 16;
 
-      // When left panel is open, prefer showing tooltip on the right side
-      if (!leftPanelCollapsed) {
-        if (window.innerWidth - rect.right < tooltipWidth + 50) {
-          setTooltipPosition('right');
-        } else {
-          setTooltipPosition('left');
-        }
+      // Vertical positioning
+      if (rect.top < tooltipHeight + 20) {
+        setTooltipVertical('below');
+      } else {
+        setTooltipVertical('above');
       }
-      // When left panel is collapsed, use center positioning
-      else {
-        // Check if tooltip would overflow left
-        if (rect.left < tooltipWidth / 2 + 16) {
-          setTooltipPosition('left');
+
+      const spaceLeft = rect.left;
+      const spaceRight = window.innerWidth - rect.right;
+      const citationCenter = rect.left + rect.width / 2;
+      const viewportCenter = window.innerWidth / 2;
+
+      // Determine if citation is on left or right half of viewport
+      const isOnLeftSide = citationCenter < viewportCenter;
+
+      if (isOnLeftSide) {
+        // Citation on left - prefer showing tooltip to the right
+        if (spaceRight >= tooltipWidth + margin) {
+          setTooltipPosition('left'); // Anchor left, extends right
+        } else if (spaceLeft >= tooltipWidth + margin) {
+          setTooltipPosition('right'); // Anchor right, extends left
+        } else {
+          setTooltipPosition('center');
         }
-        // Check if tooltip would overflow right
-        else if (window.innerWidth - rect.right < tooltipWidth / 2 + 16) {
-          setTooltipPosition('right');
-        }
-        else {
+      } else {
+        // Citation on right - prefer showing tooltip to the left
+        if (spaceLeft >= tooltipWidth + margin) {
+          setTooltipPosition('right'); // Anchor right, extends left
+        } else if (spaceRight >= tooltipWidth + margin) {
+          setTooltipPosition('left'); // Anchor left, extends right
+        } else {
           setTooltipPosition('center');
         }
       }
@@ -129,21 +144,46 @@ const InlineCitation = ({ number, source, chunkContent, isDark, onCitationClick,
   };
 
   const getTooltipStyle = () => {
-    if (tooltipPosition === 'left') {
-      return { left: '30%', transform: 'translateX(-30%)' };
-    } else if (tooltipPosition === 'right') {
-      return { right: '0', left: 'auto', transform: 'translateX(0)' };
-    }
-    return { left: '50%', transform: 'translateX(-50%)' };
+    const horizontalStyle = tooltipPosition === 'left'
+      ? { left: '0', right: 'auto', transform: 'translateX(0)' }
+      : tooltipPosition === 'right'
+        ? { right: '0', left: 'auto', transform: 'translateX(0)' }
+        : { left: '50%', transform: 'translateX(-50%)' };
+
+    const verticalStyle = tooltipVertical === 'below'
+      ? { top: 'calc(100% + 8px)', bottom: 'auto' }
+      : { bottom: 'calc(100% + 8px)', top: 'auto' };
+
+    return { ...horizontalStyle, ...verticalStyle };
   };
 
   const getArrowStyle = () => {
-    if (tooltipPosition === 'left') {
-      return { left: '30%', transform: 'translateX(0)' };
-    } else if (tooltipPosition === 'right') {
-      return { right: '16px', left: 'auto', transform: 'translateX(0)' };
+    const horizontalStyle = tooltipPosition === 'left'
+      ? { left: '12px', right: 'auto', transform: 'translateX(0)' }
+      : tooltipPosition === 'right'
+        ? { right: '12px', left: 'auto', transform: 'translateX(0)' }
+        : { left: '50%', transform: 'translateX(-50%)' };
+
+    // Arrow positioning based on tooltip vertical position
+    const verticalStyle = tooltipVertical === 'below'
+      ? { top: '-6px', bottom: 'auto' }
+      : { bottom: '-6px', top: 'auto' };
+
+    return { ...horizontalStyle, ...verticalStyle };
+  };
+
+  // Arrow border classes change based on vertical position
+  const getArrowClasses = () => {
+    if (tooltipVertical === 'below') {
+      // Arrow points up when tooltip is below
+      return isDark
+        ? 'bg-[#2a2a2a] border-l border-t border-white/10'
+        : 'bg-white border-l border-t border-gray-200';
     }
-    return { left: '50%', transform: 'translateX(-50%)' };
+    // Arrow points down when tooltip is above
+    return isDark
+      ? 'bg-[#2a2a2a] border-r border-b border-white/10'
+      : 'bg-white border-r border-b border-gray-200';
   };
 
   return (
@@ -174,19 +214,15 @@ const InlineCitation = ({ number, source, chunkContent, isDark, onCitationClick,
           className={`absolute z-[999999] p-3 rounded-lg text-xs shadow-2xl pointer-events-auto
             ${isDark ? 'bg-[#2a2a2a] text-gray-200 border border-white/10' : 'bg-white text-gray-800 border border-gray-200'}`}
           style={{
-            bottom: 'calc(100% + 8px)',
             pointerEvents: 'auto',
             width: '265px',
             ...getTooltipStyle()
           }}
         >
-          {/* Arrow pointing down */}
+          {/* Arrow - direction changes based on tooltip position */}
           <div
-            className={`absolute w-3 h-3 rotate-45 ${isDark ? 'bg-[#2a2a2a] border-r border-b border-white/10' : 'bg-white border-r border-b border-gray-200'}`}
-            style={{
-              bottom: '-6px',
-              ...getArrowStyle()
-            }}
+            className={`absolute w-3 h-3 rotate-45 ${getArrowClasses()}`}
+            style={getArrowStyle()}
           />
           <div className={`flex items-center gap-2 mb-2 pb-2 border-b ${isDark ? 'border-white/10' : 'border-gray-100'}`}>
             <FileText size={12} className={isDark ? 'text-amber-400' : 'text-amber-600'} />
@@ -482,6 +518,9 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
   const [mindMapZoom, setMindMapZoom] = useState(1);
   const [mindMapPan, setMindMapPan] = useState({ x: 0, y: 0 });
   const mindMapGenRef = useRef(false);
+  const mindMapFetchedRef = useRef(false);
+  const flashcardsFetchedRef = useRef(false);
+  const [flashcardsGenerating, setFlashcardsGenerating] = useState(false); // Separate state for generating new cards
 
   // Refs
   const messagesEndRef = useRef(null);
@@ -511,16 +550,10 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
     assistantMessage: isDark ? 'bg-white/[0.03] backdrop-blur-xl' : 'bg-white/80 backdrop-blur-xl',
   };
 
-  // Studio tools
+  // Studio tools - only active features
   const studioTools = [
-    { icon: Headphones, label: 'Audio Overview', color: isDark ? 'text-purple-400' : 'text-purple-600' },
-    { icon: Video, label: 'Video Overview', color: isDark ? 'text-blue-400' : 'text-blue-600' },
     { icon: Brain, label: 'Mind Map', color: isDark ? 'text-emerald-400' : 'text-emerald-600' },
-    { icon: FileBarChart, label: 'Reports', color: isDark ? 'text-orange-400' : 'text-orange-600' },
     { icon: BookOpen, label: 'Flashcards', color: isDark ? 'text-pink-400' : 'text-pink-600' },
-    { icon: HelpCircle, label: 'Quiz', color: isDark ? 'text-cyan-400' : 'text-cyan-600' },
-    { icon: Image, label: 'Infographic', color: isDark ? 'text-yellow-400' : 'text-yellow-600' },
-    { icon: Presentation, label: 'Slide Deck', color: isDark ? 'text-indigo-400' : 'text-indigo-600' },
   ];
 
   const scrollToBottom = useCallback(() => {
@@ -569,13 +602,51 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
   // Load conversation
   useEffect(() => {
     if (conversationId) {
+      // Reset lazy-load refs when conversation changes
+      flashcardsFetchedRef.current = false;
+      mindMapFetchedRef.current = false;
+      setFlashcards([]);
+      setMindMapData(null);
+      setShowFlashcards(false);
+      setShowMindMap(false);
       loadConversation();
+      
+      // Pre-fetch flashcards and mindmap data to show tick marks
+      (async () => {
+        try {
+          const flashcardsData = await getFlashcards(conversationId);
+          if (flashcardsData.flashcards && flashcardsData.flashcards.length > 0) {
+            setFlashcards(flashcardsData.flashcards);
+            flashcardsFetchedRef.current = true;
+          }
+        } catch (e) { /* ignore */ }
+        
+        try {
+          const mindMapResult = await getMindMap(conversationId);
+          if (mindMapResult) {
+            setMindMapData(mindMapResult);
+            mindMapFetchedRef.current = true;
+            const savedExpanded = localStorage.getItem(`mindmap_expanded_${conversationId}`);
+            if (savedExpanded) {
+              setExpandedNodes(JSON.parse(savedExpanded));
+            } else {
+              const initialExpanded = {};
+              mindMapResult.nodes?.forEach(node => { initialExpanded[node.id] = true; });
+              setExpandedNodes(initialExpanded);
+            }
+          }
+        } catch (e) { /* ignore */ }
+      })();
     } else {
       setMessages([]);
       setConversationMessages([]);
       setConversationTitle('');
       setDocuments([]);
       setNotes([]);
+      setFlashcards([]);
+      setMindMapData(null);
+      flashcardsFetchedRef.current = false;
+      mindMapFetchedRef.current = false;
     }
   }, [conversationId]);
 
@@ -833,41 +904,8 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
         setActiveParentId(lastAssistantId);
       }
 
-      // Load flashcards
-      try {
-        const flashcardsData = await getFlashcards(conversationId);
-        if (flashcardsData.flashcards && flashcardsData.flashcards.length > 0) {
-          setFlashcards(flashcardsData.flashcards);
-        }
-      } catch (e) {
-        // Flashcards not available, ignore
-      }
-
-      // Load mind map
-      try {
-        const mindMapResult = await getMindMap(conversationId);
-        if (mindMapResult) {
-          setMindMapData(mindMapResult);
-          const savedExpanded = localStorage.getItem(`mindmap_expanded_${conversationId}`);
-          if (savedExpanded) {
-            setExpandedNodes(JSON.parse(savedExpanded));
-          } else {
-            const initialExpanded = {};
-            mindMapResult.nodes?.forEach(node => { initialExpanded[node.id] = true; });
-            setExpandedNodes(initialExpanded);
-          }
-          const savedZoom = localStorage.getItem(`mindmap_zoom_${conversationId}`);
-          if (savedZoom) {
-            setMindMapZoom(JSON.parse(savedZoom));
-          }
-          const savedPan = localStorage.getItem(`mindmap_pan_${conversationId}`);
-          if (savedPan) {
-            setMindMapPan(JSON.parse(savedPan));
-          }
-        }
-      } catch (e) {
-        // Mind map not available, ignore
-      }
+      // Note: Flashcards and Mind Map are now lazy-loaded when user clicks on them
+      // This improves initial page load performance
     } catch (error) {
       console.error('Error loading conversation:', error);
     }
@@ -959,11 +997,29 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
   // Flashcard handlers
   const flashcardGenRef = useRef(false);
 
+  // Fetch existing flashcards (lazy load on first click)
+  const fetchExistingFlashcards = async () => {
+    if (!conversationId || flashcardsFetchedRef.current) return false;
+    flashcardsFetchedRef.current = true;
+    
+    try {
+      const flashcardsData = await getFlashcards(conversationId);
+      if (flashcardsData.flashcards && flashcardsData.flashcards.length > 0) {
+        setFlashcards(flashcardsData.flashcards);
+        return true; // Has flashcards
+      }
+    } catch (e) {
+      // Flashcards not available, ignore
+    }
+    return false; // No flashcards
+  };
+
   const handleGenerateFlashcards = async () => {
     if (!conversationId || flashcardGenRef.current) return;
 
     flashcardGenRef.current = true;
-    setFlashcardsLoading(true);
+    setFlashcardsGenerating(true); // Use separate generating state
+    // Don't set flashcardsLoading to true so existing cards remain accessible
     setShowFlashcards(true);
 
     try {
@@ -971,16 +1027,22 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
       console.log('[Flashcards] Generating with mode:', currentLlmMode, 'model:', selectedCloudModel);
       const result = await generateFlashcards(conversationId, selectedCloudModel);
       if (result.flashcards) {
-        setFlashcards(result.flashcards);
-        // Reset card view state when new cards are generated
-        setCurrentCardIndex(0);
-        setShowAnswer(false);
+        // Merge new flashcards with existing ones, avoiding duplicates by checking front text
+        setFlashcards(prev => {
+          const existingFronts = new Set(prev.map(fc => fc.front.toLowerCase().trim()));
+          const newCards = result.flashcards.filter(fc => !existingFronts.has(fc.front.toLowerCase().trim()));
+          return [...prev, ...newCards];
+        });
       }
     } catch (error) {
       console.error('Error generating flashcards:', error);
-      alert(`Failed to generate flashcards: ${error.message}`);
+      // Only show alert for non-busy errors (busy errors are retried automatically in local mode)
+      if (!error.message?.includes('busy')) {
+        alert(`Failed to generate flashcards: ${error.message}`);
+      }
     } finally {
       flashcardGenRef.current = false;
+      setFlashcardsGenerating(false);
       setFlashcardsLoading(false);
     }
   };
@@ -1029,8 +1091,49 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
   };
 
   // Mind Map handlers
+  // Fetch existing mind map (lazy load on first click)
+  const fetchExistingMindMap = async () => {
+    if (!conversationId || mindMapFetchedRef.current) return;
+    mindMapFetchedRef.current = true;
+    
+    try {
+      const mindMapResult = await getMindMap(conversationId);
+      if (mindMapResult) {
+        setMindMapData(mindMapResult);
+        const savedExpanded = localStorage.getItem(`mindmap_expanded_${conversationId}`);
+        if (savedExpanded) {
+          setExpandedNodes(JSON.parse(savedExpanded));
+        } else {
+          const initialExpanded = {};
+          mindMapResult.nodes?.forEach(node => { initialExpanded[node.id] = true; });
+          setExpandedNodes(initialExpanded);
+        }
+        const savedZoom = localStorage.getItem(`mindmap_zoom_${conversationId}`);
+        if (savedZoom) setMindMapZoom(JSON.parse(savedZoom));
+        const savedPan = localStorage.getItem(`mindmap_pan_${conversationId}`);
+        if (savedPan) setMindMapPan(JSON.parse(savedPan));
+        return true; // Mind map exists
+      }
+    } catch (e) {
+      // Mind map not available
+    }
+    return false;
+  };
+
   const handleGenerateMindMap = async () => {
-    if (!conversationId || mindMapGenRef.current) return;
+    if (!conversationId) return;
+    
+    // If already generating, just show the loading state
+    if (mindMapGenRef.current) {
+      setShowMindMap(true);
+      return;
+    }
+
+    // If mind map exists, just show it
+    if (mindMapData) {
+      setShowMindMap(true);
+      return;
+    }
 
     mindMapGenRef.current = true;
     setMindMapLoading(true);
@@ -1048,7 +1151,10 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
       }
     } catch (error) {
       console.error('Error generating mind map:', error);
-      alert(`Failed to generate mind map: ${error.message}`);
+      // Only show alert for non-busy errors (busy errors are retried automatically in local mode)
+      if (!error.message?.includes('busy')) {
+        alert(`Failed to generate mind map: ${error.message}`);
+      }
     } finally {
       mindMapGenRef.current = false;
       setMindMapLoading(false);
@@ -1080,17 +1186,61 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
     setMindMapCanvasMode(false);
   };
 
-  const handleStudioToolClick = (toolLabel) => {
+  const handleStudioToolClick = async (toolLabel) => {
     if (toolLabel === 'Flashcards') {
+      // If generating, show flashcards view (with existing cards or loading)
+      if (flashcardGenRef.current) {
+        setShowFlashcards(true);
+        return;
+      }
+      
+      // If we have cards, just show them
       if (flashcards.length > 0) {
         setShowFlashcards(true);
+        return;
+      }
+      
+      // First time click - try to fetch existing, if none then generate
+      if (!flashcardsFetchedRef.current) {
+        setFlashcardsLoading(true);
+        setShowFlashcards(true);
+        const hasCards = await fetchExistingFlashcards();
+        setFlashcardsLoading(false);
+        
+        // If no cards found after fetching, generate new ones
+        if (!hasCards) {
+          handleGenerateFlashcards();
+        }
       } else {
+        // Already fetched but no cards, generate new ones
         handleGenerateFlashcards();
       }
     } else if (toolLabel === 'Mind Map') {
+      // If generating, show mind map view with loading state
+      if (mindMapGenRef.current) {
+        setShowMindMap(true);
+        return;
+      }
+      
+      // If mind map exists, show it
       if (mindMapData) {
         setShowMindMap(true);
+        return;
+      }
+      
+      // First time click - try to fetch existing
+      if (!mindMapFetchedRef.current) {
+        setMindMapLoading(true);
+        setShowMindMap(true);
+        const exists = await fetchExistingMindMap();
+        setMindMapLoading(false);
+        
+        // If no existing mind map, generate new one
+        if (!exists) {
+          handleGenerateMindMap();
+        }
       } else {
+        // Already fetched but no data, generate new one
         handleGenerateMindMap();
       }
     }
@@ -2575,7 +2725,9 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                           <>
                             <div className={`prose prose-sm max-w-none ${isDark ? 'prose-invert' : ''}`} style={{ overflow: 'visible' }}>
                               <MarkdownRenderer
-                                content={message.content}
+                                content={message.isStreaming && !message.isWaitingForFirstToken
+                                  ? message.content + '▍'
+                                  : message.content}
                                 isDark={isDark}
                                 sources={message.sources || []}
                                 sourceChunks={message.sourceChunks || []}
@@ -2590,10 +2742,6 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                                 }}
                               />
                             </div>
-                            {/* Blinking cursor at the end of text while streaming */}
-                            {message.isStreaming && !message.isWaitingForFirstToken && (
-                              <span className="inline-block w-0.5 h-4 ml-0.5 bg-amber-500 animate-pulse" style={{ verticalAlign: 'baseline' }} />
-                            )}
                           </>
                         )}
 
@@ -3099,8 +3247,10 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
             <>
               {/* Studio Header - hide in fullscreen mode */}
               <div
-                className={`flex items-center justify-between px-4 py-3 border-b ${theme.panelBorder}`}
-                style={{ display: mindMapCanvasMode ? 'none' : 'flex' }}
+                className={`flex items-center justify-between px-4 py-3 border-b ${theme.panelBorder} flex-shrink-0`}
+                style={{ display: mindMapCanvasMode ? 'none' : 'flex', position: 'relative', zIndex: 100 }}
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
               >
                 {showMindMap ? (
                   <div className="flex items-center gap-2">
@@ -3175,8 +3325,34 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                   >
                     {mindMapLoading ? (
                       <div className="flex-1 flex flex-col items-center justify-center gap-4">
-                        <Loader2 size={40} className={`animate-spin ${isDark ? 'text-amber-400' : 'text-amber-600'}`} />
-                        <p className={`text-sm ${theme.textMuted}`}>Generating mind map...</p>
+                        {/* Spinner */}
+                        <div className={`p-4 rounded-2xl ${isDark ? 'bg-emerald-500/10' : 'bg-emerald-50'}`}>
+                          <Loader2 size={32} className={`animate-spin ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} strokeWidth={2} />
+                        </div>
+                        
+                        {/* Loading text */}
+                        <div className="text-center">
+                          <p className={`text-base font-semibold ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
+                            Generating Mind Map
+                          </p>
+                          <p className={`text-sm mt-1 ${theme.textMuted}`}>
+                            Analyzing document structure...
+                          </p>
+                        </div>
+                        
+                        {/* Animated dots */}
+                        <div className="flex gap-1.5">
+                          {[0, 1, 2].map(i => (
+                            <div 
+                              key={i}
+                              className={`w-2 h-2 rounded-full ${isDark ? 'bg-emerald-400' : 'bg-emerald-500'}`}
+                              style={{ 
+                                animation: 'bounce 1.4s ease-in-out infinite',
+                                animationDelay: `${i * 0.16}s`
+                              }} 
+                            />
+                          ))}
+                        </div>
                       </div>
                     ) : mindMapData ? (
                       <MindMapCanvas
@@ -3211,10 +3387,36 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                 ) : showFlashcards ? (
                   /* Flashcard View - Carousel Style */
                   <div className="flex flex-col h-full">
-                    {flashcardsLoading ? (
+                    {(flashcardsLoading || (flashcardsGenerating && flashcards.length === 0)) ? (
                       <div className="flex-1 flex flex-col items-center justify-center gap-4">
-                        <Loader2 size={40} className={`animate-spin ${isDark ? 'text-amber-400' : 'text-amber-600'}`} />
-                        <p className={`text-sm ${theme.textMuted}`}>Generating flashcards...</p>
+                        {/* Spinner */}
+                        <div className={`p-4 rounded-2xl ${isDark ? 'bg-amber-500/10' : 'bg-amber-50'}`}>
+                          <Loader2 size={32} className={`animate-spin ${isDark ? 'text-amber-400' : 'text-amber-600'}`} strokeWidth={2} />
+                        </div>
+                        
+                        {/* Loading text */}
+                        <div className="text-center">
+                          <p className={`text-base font-semibold ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>
+                            Generating Flashcards
+                          </p>
+                          <p className={`text-sm mt-1 ${theme.textMuted}`}>
+                            Creating study cards...
+                          </p>
+                        </div>
+                        
+                        {/* Animated dots */}
+                        <div className="flex gap-1.5">
+                          {[0, 1, 2].map(i => (
+                            <div 
+                              key={i}
+                              className={`w-2 h-2 rounded-full ${isDark ? 'bg-amber-400' : 'bg-amber-500'}`}
+                              style={{ 
+                                animation: 'bounce 1.4s ease-in-out infinite',
+                                animationDelay: `${i * 0.16}s`
+                              }} 
+                            />
+                          ))}
+                        </div>
                       </div>
                     ) : flashcards.length > 0 ? (
                       <div className="flex-1 flex flex-col">
@@ -3301,15 +3503,25 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                             </button>
                           )}
 
+                          {/* Generating indicator - simpler version */}
+                          {flashcardsGenerating && (
+                            <div className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg ${isDark ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-amber-50 border border-amber-200'}`}>
+                              <Loader2 size={14} className={`animate-spin ${isDark ? 'text-amber-400' : 'text-amber-600'}`} strokeWidth={2.5} />
+                              <span className={`text-xs font-medium ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>
+                                Generating more...
+                              </span>
+                            </div>
+                          )}
+
                           {/* Progress */}
                           <div className="flex items-center gap-3">
                             <button
                               onClick={handleGenerateFlashcards}
-                              disabled={flashcardsLoading}
-                              className={`p-2 rounded-lg ${theme.hoverBg} ${theme.textMuted}`}
+                              disabled={flashcardsGenerating}
+                              className={`p-2 rounded-lg ${theme.hoverBg} ${theme.textMuted} ${flashcardsGenerating ? 'opacity-50' : ''}`}
                               title="Generate more cards"
                             >
-                              <RefreshCw size={16} className={flashcardsLoading ? 'animate-spin' : ''} />
+                              <RefreshCw size={16} className={flashcardsGenerating ? 'animate-spin' : ''} />
                             </button>
                             <div className="flex-1 h-1.5 rounded-full bg-gray-700/30 overflow-hidden">
                               <div
@@ -3329,7 +3541,7 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                         <p className="text-sm">No flashcards yet</p>
                         <button
                           onClick={handleGenerateFlashcards}
-                          disabled={flashcardsLoading}
+                          disabled={flashcardsGenerating || flashcardsLoading}
                           className={`mt-2 px-4 py-2 rounded-lg text-sm ${theme.buttonPrimary} text-white flex items-center gap-2`}
                         >
                           <Sparkles size={14} />
@@ -3342,31 +3554,47 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                   /* Normal Studio Tools Grid */
                   <>
                     <div className="grid grid-cols-2 gap-2">
-                      {studioTools.map((tool, index) => (
+                      {studioTools.map((tool, index) => {
+                        const isFlashcardGenerating = tool.label === 'Flashcards' && flashcardsGenerating;
+                        const isMindMapGenerating = tool.label === 'Mind Map' && mindMapLoading;
+                        const isGenerating = isFlashcardGenerating || isMindMapGenerating;
+                        
+                        return (
                         <button
                           key={index}
                           onClick={() => handleStudioToolClick(tool.label)}
-                          className={`flex flex-col items-center justify-center gap-2 p-3 rounded-xl border
+                          className={`flex flex-col items-center justify-center gap-2 p-3 rounded-xl border relative overflow-hidden
                             ${theme.cardBg} ${theme.cardBorder} ${theme.hoverBg} transition-all hover:scale-[1.02]
-                            ${tool.label === 'Flashcards' && flashcards.length > 0 ? (isDark ? 'ring-1 ring-pink-500/50' : 'ring-1 ring-pink-400/50') : ''}
-                            ${tool.label === 'Mind Map' && mindMapData ? (isDark ? 'ring-1 ring-emerald-500/50' : 'ring-1 ring-emerald-400/50') : ''}`}
+                            ${tool.label === 'Flashcards' && flashcards.length > 0 && !isFlashcardGenerating ? (isDark ? 'ring-1 ring-pink-500/50' : 'ring-1 ring-pink-400/50') : ''}
+                            ${tool.label === 'Mind Map' && mindMapData && !isMindMapGenerating ? (isDark ? 'ring-1 ring-emerald-500/50' : 'ring-1 ring-emerald-400/50') : ''}
+                            ${isGenerating ? (isDark ? 'ring-1 ring-amber-500/40' : 'ring-1 ring-amber-400/40') : ''}`}
                         >
-                          <tool.icon size={20} className={tool.color} strokeWidth={1.5} />
-                          <span className={`text-xs text-center ${theme.textSecondary}`}>
+                          {/* Generating Animation Overlay - Simple version */}
+                          {isGenerating && (
+                            <div className="absolute inset-0 flex flex-col items-center justify-center">
+                              <Loader2 size={20} className={`animate-spin ${isDark ? 'text-amber-400' : 'text-amber-600'}`} strokeWidth={2.5} />
+                              <span className={`text-[10px] mt-1.5 font-medium ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>
+                                Generating...
+                              </span>
+                            </div>
+                          )}
+                          <tool.icon size={20} className={`${tool.color} ${isGenerating ? 'opacity-0' : ''}`} strokeWidth={1.5} />
+                          <span className={`text-xs text-center ${theme.textSecondary} ${isGenerating ? 'opacity-0' : ''}`}>
                             {tool.label}
-                            {tool.label === 'Flashcards' && flashcards.length > 0 && (
+                            {tool.label === 'Flashcards' && flashcards.length > 0 && !isFlashcardGenerating && (
                               <span className={`ml-1 px-1 rounded text-[10px] ${isDark ? 'bg-pink-500/20 text-pink-400' : 'bg-pink-100 text-pink-600'}`}>
                                 {flashcards.length}
                               </span>
                             )}
-                            {tool.label === 'Mind Map' && mindMapData && (
+                            {tool.label === 'Mind Map' && mindMapData && !isMindMapGenerating && (
                               <span className={`ml-1 px-1 rounded text-[10px] ${isDark ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-100 text-emerald-600'}`}>
                                 ✓
                               </span>
                             )}
                           </span>
                         </button>
-                      ))}
+                        );
+                      })}
                     </div>
 
                     {/* Notes Section */}

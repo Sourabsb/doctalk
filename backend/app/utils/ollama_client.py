@@ -1,13 +1,115 @@
 import asyncio
+import logging
 import os
 import queue
 import threading
+from contextlib import asynccontextmanager
 from typing import List, Dict, Optional, AsyncGenerator
 
 import ollama
 from ollama import Client
 
 from ..config import OLLAMA_MODEL, OLLAMA_HOST, OLLAMA_CONTEXT_LENGTH
+
+logger = logging.getLogger(__name__)
+
+
+# ============== LLM Queue / Lock System ==============
+# Global locks for serializing LLM requests (Ollama can only handle one at a time)
+
+_conversation_locks: Dict[int, asyncio.Semaphore] = {}
+_conversation_acquired: Dict[int, bool] = {}
+_global_lock = asyncio.Lock()
+# Per-event-loop semaphores to avoid cross-loop/worker issues
+_local_mode_semaphores: Dict[int, asyncio.Semaphore] = {}
+
+
+def _get_local_semaphore() -> asyncio.Semaphore:
+    """Get or create a local mode semaphore for the current event loop.
+    
+    Each event loop gets its own semaphore to avoid cross-loop issues.
+    """
+    loop = asyncio.get_running_loop()
+    loop_id = id(loop)
+    if loop_id not in _local_mode_semaphores:
+        _local_mode_semaphores[loop_id] = asyncio.Semaphore(1)
+    return _local_mode_semaphores[loop_id]
+
+
+async def _get_conversation_lock(conversation_id: int) -> asyncio.Semaphore:
+    """Get or create a semaphore for a specific conversation."""
+    async with _global_lock:
+        if conversation_id not in _conversation_locks:
+            _conversation_locks[conversation_id] = asyncio.Semaphore(1)
+            _conversation_acquired[conversation_id] = False
+        return _conversation_locks[conversation_id]
+
+
+async def acquire_llm_lock(conversation_id: int, timeout: float = 180.0) -> bool:
+    """Acquire the LLM lock for a conversation (used for streaming)."""
+    semaphore = await _get_conversation_lock(conversation_id)
+    try:
+        acquired = await asyncio.wait_for(semaphore.acquire(), timeout=timeout)
+        if acquired:
+            # Protect mutation of shared state with global lock
+            async with _global_lock:
+                _conversation_acquired[conversation_id] = True
+        return acquired
+    except asyncio.TimeoutError:
+        return False
+
+
+async def release_llm_lock(conversation_id: int):
+    """Release the LLM lock for a conversation.
+    
+    This is async to properly coordinate with the global lock for thread safety.
+    """
+    async with _global_lock:
+        if conversation_id in _conversation_locks and _conversation_acquired.get(conversation_id, False):
+            try:
+                _conversation_locks[conversation_id].release()
+                _conversation_acquired[conversation_id] = False
+            except ValueError:
+                pass
+
+
+@asynccontextmanager
+async def LLMRequestContext(conversation_id: int, timeout: float = 120.0):
+    """Async context manager that serializes LLM requests per conversation."""
+    semaphore = await _get_conversation_lock(conversation_id)
+    try:
+        acquired = await asyncio.wait_for(semaphore.acquire(), timeout=timeout)
+        if not acquired:
+            raise TimeoutError("Could not acquire LLM lock")
+        yield
+    except asyncio.TimeoutError:
+        raise TimeoutError("Another LLM request is in progress. Please wait and try again.")
+    finally:
+        try:
+            semaphore.release()
+        except ValueError:
+            pass
+
+
+@asynccontextmanager
+async def LocalModeLock(timeout: float = 180.0):
+    """Global lock for local mode - ensures only one Ollama request at a time."""
+    semaphore = _get_local_semaphore()
+    try:
+        acquired = await asyncio.wait_for(semaphore.acquire(), timeout=timeout)
+        if not acquired:
+            raise TimeoutError("Could not acquire local mode lock")
+        yield
+    except asyncio.TimeoutError:
+        raise TimeoutError("Ollama is busy processing another request. Please wait.")
+    finally:
+        try:
+            semaphore.release()
+        except ValueError:
+            pass
+
+
+# ============== Ollama Client ==============
 
 
 class OllamaClient:
@@ -126,24 +228,15 @@ RESPONSE STYLE:
         context_docs: List[Dict],
         chat_history: List[Dict],
         hybrid_context: Optional[str] = None,
-        **kwargs
     ) -> Dict[str, any]:
         messages = self._build_messages(query, context_docs, chat_history, hybrid_context)
-        
-        # Extract options from kwargs
-        fmt = kwargs.get("format")
 
         def _call_ollama():
-            options = {"num_ctx": self.context_length}
-            call_kwargs = {
-                "model": self.model_name,
-                "messages": messages,
-                "options": options,
-            }
-            if fmt:
-                call_kwargs["format"] = fmt
-            
-            return self.client.chat(**call_kwargs)
+            return self.client.chat(
+                model=self.model_name,
+                messages=messages,
+                options={"num_ctx": self.context_length},
+            )
 
         try:
             loop = asyncio.get_running_loop()
@@ -152,12 +245,20 @@ RESPONSE STYLE:
             hint = f"Ensure Ollama is running on {OLLAMA_HOST} and the model '{self.model_name}' is pulled."
             raise ValueError(f"Failed to generate response with local model: {str(exc)}. {hint}")
 
+        # Extract content from response - handle both dict and object formats
+        content = ""
         if hasattr(response, 'message'):
-            message = response.message
-            content = message.content if hasattr(message, 'content') else ""
-        else:
-            message = response.get("message", {})
-            content = message.get("content", "") if isinstance(message, dict) else ""
+            msg = response.message
+            if hasattr(msg, 'content'):
+                content = msg.content or ""
+            elif isinstance(msg, dict):
+                content = msg.get("content", "")
+        elif isinstance(response, dict):
+            msg = response.get("message", {})
+            if isinstance(msg, dict):
+                content = msg.get("content", "")
+            elif hasattr(msg, 'content'):
+                content = msg.content or ""
 
         sources = self._extract_sources(context_docs)
         source_chunks = self._extract_source_chunks(context_docs)
@@ -166,6 +267,48 @@ RESPONSE STYLE:
             "sources": sources,
             "source_chunks": source_chunks,
         }
+
+    async def generate_simple_response(self, prompt: str) -> str:
+        """
+        Simple generation without document context - for mindmap/flashcards.
+        Just passes the prompt directly to Ollama without chat formatting.
+        """
+        def _call_ollama():
+            return self.client.chat(
+                model=self.model_name,
+                messages=[
+                    {"role": "user", "content": prompt}
+                ],
+                options={"num_ctx": self.context_length},
+            )
+
+        try:
+            loop = asyncio.get_running_loop()
+            response = await loop.run_in_executor(None, _call_ollama)
+            logger.debug("Ollama raw response type: %s", type(response).__name__)
+        except Exception as exc:
+            hint = f"Ensure Ollama is running on {OLLAMA_HOST} and the model '{self.model_name}' is pulled."
+            raise ValueError(f"Ollama error: {str(exc)}. {hint}")
+
+        # Extract content from response - handle both dict and object formats
+        content = ""
+        if hasattr(response, 'message'):
+            # Response is an object with .message attribute
+            msg = response.message
+            if hasattr(msg, 'content'):
+                content = msg.content or ""
+            elif isinstance(msg, dict):
+                content = msg.get("content", "")
+        elif isinstance(response, dict):
+            # Response is a dict
+            msg = response.get("message", {})
+            if isinstance(msg, dict):
+                content = msg.get("content", "")
+            elif hasattr(msg, 'content'):
+                content = msg.content or ""
+        
+        logger.debug("Ollama extracted content length: %d", len(content))
+        return content
 
     def _format_context(self, context_docs: List[Dict]) -> str:
         formatted = []

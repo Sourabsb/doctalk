@@ -32,6 +32,28 @@ api.interceptors.response.use(
   }
 )
 
+// Helper function for local mode requests with retry (queue-based)
+const localModeRetry = async (fetchFn, maxRetries = 5, retryDelay = 3000) => {
+  let lastError;
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await fetchFn();
+    } catch (error) {
+      lastError = error;
+      const errorMsg = error.message || '';
+      // Check if it's an "Ollama busy" error - retry automatically
+      if (errorMsg.includes('busy') || errorMsg.includes('Ollama is busy')) {
+        console.log(`[LocalMode] Ollama busy, retrying in ${retryDelay/1000}s... (attempt ${attempt + 1}/${maxRetries})`);
+        await new Promise(resolve => setTimeout(resolve, retryDelay));
+        continue;
+      }
+      // For other errors, throw immediately
+      throw error;
+    }
+  }
+  throw lastError;
+};
+
 export const signup = async ({ name, email, password }) => {
   const response = await api.post('/auth/signup', { name, email, password })
   return response.data
@@ -263,8 +285,15 @@ export const toggleDocument = async (conversationId, documentId, isActive) => {
 }
 
 export const getFlashcards = async (conversationId) => {
-  const response = await api.get(`/api/conversations/${conversationId}/flashcards`)
-  return response.data
+  try {
+    const response = await api.get(`/api/conversations/${conversationId}/flashcards`)
+    return response.data
+  } catch (error) {
+    if (error.response?.status === 404) {
+      return { flashcards: [] }
+    }
+    throw error
+  }
 }
 
 export const generateFlashcards = async (conversationId, cloudModel = null) => {
@@ -273,24 +302,33 @@ export const generateFlashcards = async (conversationId, cloudModel = null) => {
 
   console.log('[Flashcards] Starting generation for conversation:', conversationId, 'model:', cloudModel, 'API:', API_BASE_URL);
 
-  const response = await fetch(`${API_BASE_URL}/api/conversations/${conversationId}/flashcards/generate`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
-    },
-    body: JSON.stringify({ cloud_model: cloudModel })
-  });
+  // Use retry logic for local mode (when cloudModel is null)
+  const fetchFn = async () => {
+    const response = await fetch(`${API_BASE_URL}/api/conversations/${conversationId}/flashcards/generate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ cloud_model: cloudModel })
+    });
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    console.error('[Flashcards] Generation failed:', errorData);
-    throw new Error(errorData.detail || `HTTP error ${response.status}`);
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error('[Flashcards] Generation failed:', errorData);
+      throw new Error(errorData.detail || `HTTP error ${response.status}`);
+    }
+
+    const data = await response.json();
+    console.log('[Flashcards] Generation complete, cards:', data?.flashcards?.length);
+    return data;
+  };
+
+  // Only use retry for local mode (no cloudModel means local)
+  if (!cloudModel) {
+    return localModeRetry(fetchFn, 5, 3000);
   }
-
-  const data = await response.json();
-  console.log('[Flashcards] Generation complete, cards:', data?.flashcards?.length);
-  return data;
+  return fetchFn();
 }
 
 export const deleteFlashcard = async (conversationId, flashcardId) => {
@@ -302,29 +340,44 @@ export const deleteAllFlashcards = async (conversationId) => {
 }
 
 export const getMindMap = async (conversationId) => {
-  const response = await api.get(`/api/conversations/${conversationId}/mindmap`)
-  return response.data
+  try {
+    const response = await api.get(`/api/conversations/${conversationId}/mindmap`)
+    return response.data
+  } catch (error) {
+    if (error.response?.status === 404) {
+      return null
+    }
+    throw error
+  }
 }
 
 export const generateMindMap = async (conversationId, cloudModel = null) => {
   const token = localStorage.getItem('docTalkToken');
   const API_BASE_URL = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8000`;
 
-  const response = await fetch(`${API_BASE_URL}/api/conversations/${conversationId}/mindmap/generate`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
-    },
-    body: JSON.stringify({ cloud_model: cloudModel })
-  });
+  const fetchFn = async () => {
+    const response = await fetch(`${API_BASE_URL}/api/conversations/${conversationId}/mindmap/generate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ cloud_model: cloudModel })
+    });
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.detail || `HTTP error ${response.status}`);
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.detail || `HTTP error ${response.status}`);
+    }
+
+    return await response.json();
+  };
+
+  // Only use retry for local mode (no cloudModel means local)
+  if (!cloudModel) {
+    return localModeRetry(fetchFn, 5, 3000);
   }
-
-  return await response.json();
+  return fetchFn();
 }
 
 export const deleteMindMap = async (conversationId) => {

@@ -13,7 +13,7 @@ from ..models.schemas import (
     ResponseVariant
 )
 from ..utils.document_processor import DocumentProcessor
-from ..utils.embeddings import EmbeddingProcessor
+from ..utils.embeddings import EmbeddingProcessor, QdrantVectorStore
 
 router = APIRouter(tags=["conversations"])
 
@@ -204,6 +204,12 @@ def delete_conversation(
     if not conversation:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
 
+    try:
+        vector_store = QdrantVectorStore(conversation_id)
+        vector_store.delete_by_conversation()
+    except Exception:
+        pass
+
     db.delete(conversation)
     db.commit()
 
@@ -234,7 +240,12 @@ def delete_document(
     if not document:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
 
-    # Delete associated chunks first
+    try:
+        vector_store = QdrantVectorStore(conversation_id)
+        vector_store.delete_by_document(document_id)
+    except Exception:
+        pass
+
     db.query(DocumentChunk).filter(DocumentChunk.document_id == document_id).delete()
     
     # Delete the document
@@ -270,8 +281,6 @@ def create_note(
     db.flush()
     db.commit()
     db.refresh(document)
-
-    print(f"Note created: ID={document.id}, Title={document.filename}, ConvID={conversation_id}")
 
     return {
         "id": document.id,
@@ -355,14 +364,6 @@ def convert_note_to_source(
         )
 
         if not note_doc:
-            print(f"DEBUG: Note with ID {note_id} not found in conversation {conversation_id}")
-            print(f"DEBUG: Available notes in this conversation:")
-            available_notes = db.query(Document).filter(
-                Document.conversation_id == conversation_id,
-                Document.doc_type == "note"
-            ).all()
-            for note in available_notes:
-                print(f"  - ID: {note.id}, Title: {note.filename}")
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Note with ID {note_id} not found")
 
         if not note_doc.content or not note_doc.content.strip():
@@ -377,7 +378,13 @@ def convert_note_to_source(
         # Delete any existing chunks for this note (for re-conversion)
         db.query(DocumentChunk).filter(DocumentChunk.document_id == note_id).delete()
         
-        # Create new chunks
+        try:
+            vector_store = QdrantVectorStore(conversation_id)
+            vector_store.delete_by_document(note_id)
+        except Exception:
+            pass
+        
+        # Create new chunks in SQLite
         for i, chunk in enumerate(chunks):
             metadata = {
                 "source": note_doc.filename,
@@ -392,6 +399,14 @@ def convert_note_to_source(
                 metadata_json=json.dumps(metadata)
             )
             db.add(db_chunk)
+        
+        try:
+            text_data = {note_doc.filename: note_doc.content}
+            source_to_doc_id = {note_doc.filename: note_doc.id}
+            vector_store = QdrantVectorStore(conversation_id)
+            vector_store.add_documents(text_data, source_to_doc_id)
+        except Exception:
+            pass
         
         # Mark the note as having embeddings
         note_doc.has_embeddings = True
@@ -411,9 +426,6 @@ def convert_note_to_source(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"ERROR in convert_note_to_source: {str(e)}")
-        import traceback
-        traceback.print_exc()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error converting note: {str(e)}")
 
 
@@ -464,9 +476,6 @@ def unconvert_note_from_source(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"ERROR in unconvert_note_from_source: {str(e)}")
-        import traceback
-        traceback.print_exc()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error unconverting note: {str(e)}")
 
 

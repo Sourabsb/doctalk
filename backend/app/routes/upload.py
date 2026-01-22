@@ -1,12 +1,15 @@
 import json
+import logging
 from datetime import datetime
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Form
 from sqlalchemy.orm import Session
 from typing import List
 
 from ..models.schemas import UploadResponse
+
+logger = logging.getLogger(__name__)
 from ..utils.document_processor import DocumentProcessor
-from ..utils.embeddings import EmbeddingProcessor
+from ..utils.embeddings import QdrantVectorStore, EmbeddingProcessor
 from ..config import MAX_FILE_SIZE, DEFAULT_LLM_MODE
 from ..dependencies import get_db, get_current_user
 from ..models.db_models import Conversation, Document, DocumentChunk
@@ -22,12 +25,10 @@ async def upload_files(
     current_user = Depends(get_current_user)
 ):
     try:
-        print(f"Upload request received: {len(files)} files, title: {title}")
         chosen_mode = (llm_mode or DEFAULT_LLM_MODE or "api").lower()
         if chosen_mode not in ("api", "local"):
             raise HTTPException(status_code=400, detail="Invalid llm_mode. Use 'api' or 'local'.")
         processor = DocumentProcessor()
-        embedding_processor = EmbeddingProcessor()
         
         all_text_data = {}
         processed_files = []
@@ -64,8 +65,7 @@ async def upload_files(
                 raise HTTPException(status_code=400, detail="No text extracted from files")
         
         try:
-            vector_store = embedding_processor.create_vector_store(all_text_data)
-
+            # Create conversation first (need ID for Qdrant)
             conversation_title = title or (processed_files[0] if processed_files else "Untitled Conversation")
             conversation = Conversation(
                 user_id=current_user.id,
@@ -77,19 +77,54 @@ async def upload_files(
             db.add(conversation)
             db.flush()
 
+            # Create document records
             unique_files = list(dict.fromkeys(processed_files))
             document_map = {}
+            source_to_doc_id = {}  # Map source names to document IDs for Qdrant
+            
             for filename in unique_files:
                 document = Document(
                     conversation_id=conversation.id, 
                     filename=filename,
-                    content=file_contents.get(filename, "")  # Store the extracted text
+                    content=file_contents.get(filename, "")
                 )
                 db.add(document)
                 db.flush()
                 document_map[filename] = document
+                
+                # Map all source variations to this document ID
+                # Use full filename as primary key to avoid collisions (e.g., report.pdf vs report.docx)
+                source_to_doc_id[filename] = document.id
+                # Also map page-based sources (e.g., "file.name.pdf_page_1")
+                for source in all_text_data.keys():
+                    source_base = source.split('_page_')[0]
+                    # Match if source exactly equals filename, or source_base equals filename
+                    if source == filename or source_base == filename:
+                        source_to_doc_id[source] = document.id
+                        # Also store source_base if it's different from source (for page-based lookups)
+                        if source_base != source:
+                            source_to_doc_id[source_base] = document.id
+            
+            # Check for unmapped sources and log warnings (do not silently fallback)
+            available_doc_ids = {fn: doc.id for fn, doc in document_map.items()}
+            for source in all_text_data.keys():
+                if source not in source_to_doc_id:
+                    logger.warning(
+                        "Unmapped source '%s' could not be matched to any document. "
+                        "Available documents: %s. Chunks from this source will be created with "
+                        "document_id=None (document_map.get() returns None for unmatched sources).",
+                        source,
+                        available_doc_ids
+                    )
 
-            for idx, metadata in enumerate(vector_store.metadatas):
+            vector_store = QdrantVectorStore(conversation.id)
+            chunk_count, qdrant_texts, qdrant_metadatas = vector_store.add_documents(all_text_data, source_to_doc_id)
+
+            # Save chunks to SQLite for metadata backup
+            embedding_processor = EmbeddingProcessor()
+            embedding_processor.create_vector_store(all_text_data, precomputed_texts=qdrant_texts, precomputed_metadatas=qdrant_metadatas)
+            
+            for idx, metadata in enumerate(embedding_processor.metadatas):
                 source = metadata.get("source", processed_files[0]) if processed_files else metadata.get("source", "Unknown")
                 filename_key = source.split("_page_")[0]
                 document = document_map.get(filename_key) or document_map.get(source)
@@ -97,7 +132,7 @@ async def upload_files(
                     conversation_id=conversation.id,
                     document_id=document.id if document else None,
                     chunk_index=metadata.get("chunk_id", idx),
-                    content=vector_store.texts[idx],
+                    content=embedding_processor.texts[idx],
                     metadata_json=json.dumps(metadata)
                 )
                 db.add(chunk)
@@ -117,9 +152,5 @@ async def upload_files(
     except HTTPException:
         raise
     except Exception as e:
-        error_msg = f"Upload error: {str(e)}"
-        print(f"ERROR in upload: {error_msg}")
-        import traceback
-        traceback.print_exc()
         db.rollback()
-        raise HTTPException(status_code=500, detail=error_msg)
+        raise HTTPException(status_code=500, detail=f"Upload error: {str(e)}")
