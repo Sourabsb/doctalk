@@ -221,7 +221,13 @@ def get_mindmap(
         Document.is_active == True
     ).count()
     
-    nodes_data = json.loads(mindmap.data_json)
+    try:
+        nodes_data = json.loads(mindmap.data_json)
+    except (json.JSONDecodeError, TypeError) as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid mind map data format: {str(e)}"
+        )
     
     return MindMapResponse(
         id=mindmap.id,

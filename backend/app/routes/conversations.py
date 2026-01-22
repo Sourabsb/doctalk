@@ -1,8 +1,11 @@
 from typing import List
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 import json
+
+logger = logging.getLogger(__name__)
 
 from ..dependencies import get_db, get_current_user
 from ..models.db_models import Conversation, Document, DocumentChunk
@@ -400,16 +403,17 @@ def convert_note_to_source(
             )
             db.add(db_chunk)
         
+        embeddings_success = False
         try:
             text_data = {note_doc.filename: note_doc.content}
             source_to_doc_id = {note_doc.filename: note_doc.id}
             vector_store = QdrantVectorStore(conversation_id)
             vector_store.add_documents(text_data, source_to_doc_id)
-        except Exception:
-            pass
+            embeddings_success = True
+        except Exception as e:
+            logger.warning(f"Failed to add note vectors: {e}")
         
-        # Mark the note as having embeddings
-        note_doc.has_embeddings = True
+        note_doc.has_embeddings = embeddings_success
         
         db.commit()
         

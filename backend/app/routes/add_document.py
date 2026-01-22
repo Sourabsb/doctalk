@@ -87,20 +87,27 @@ async def add_documents_to_conversation(
                 db.add(document)
                 db.flush()
                 document_map[filename] = document
-                
-                # Map all source variations to this document ID using robust stem
                 source_to_doc_id[filename] = document.id
-                # Get filename stem: "file.name.pdf" -> "file.name"
-                filename_stem = filename.rsplit('.', 1)[0] if '.' in filename else filename
-                source_to_doc_id[filename_stem] = document.id
-                for source in all_text_data.keys():
-                    # Match exact filename or sources that start with stem followed by underscore/dot/end
-                    source_stem = source.rsplit('.', 1)[0] if '.' in source else source
-                    # Also handle page-based sources like "file.name.pdf_page_1"
-                    source_base = source.split('_page_')[0]
-                    source_base_stem = source_base.rsplit('.', 1)[0] if '.' in source_base else source_base
-                    if source == filename or source_base == filename or source_base_stem == filename_stem:
-                        source_to_doc_id[source] = document.id
+            
+            # Map sources to documents without collisions
+            stem_to_doc = {}
+            for filename, doc in document_map.items():
+                stem = filename.rsplit('.', 1)[0] if '.' in filename else filename
+                if stem not in stem_to_doc:
+                    stem_to_doc[stem] = doc.id
+                elif stem_to_doc[stem] != doc.id:
+                    stem_to_doc[stem] = None  # Ambiguous
+            
+            for source in all_text_data.keys():
+                if source in source_to_doc_id:
+                    continue
+                source_base = source.split('_page_')[0]
+                if source_base in document_map:
+                    source_to_doc_id[source] = document_map[source_base].id
+                    continue
+                source_stem = source_base.rsplit('.', 1)[0] if '.' in source_base else source_base
+                if source_stem in stem_to_doc and stem_to_doc[source_stem] is not None:
+                    source_to_doc_id[source] = stem_to_doc[source_stem]
             
             # Check for unmapped sources and log warnings (do not silently fallback)
             available_doc_ids = {fn: doc.id for fn, doc in document_map.items()}

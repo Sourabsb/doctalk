@@ -570,6 +570,21 @@ async def chat_stream(
         lock_acquired = await acquire_llm_lock(conv_id, timeout=300.0)
         
         if not lock_acquired:
+            # Save error assistant message to prevent orphaned user message
+            err_session = SessionLocal()
+            try:
+                err_msg = ChatMessage(
+                    conversation_id=conv_id,
+                    role="assistant",
+                    content="[Error: Another request is in progress. Please wait and try again.]",
+                    reply_to_message_id=user_message_id,
+                    version_index=1,
+                    is_archived=False
+                )
+                err_session.add(err_msg)
+                err_session.commit()
+            finally:
+                err_session.close()
             yield f"data: {json.dumps({'type': 'error', 'message': 'Another request is in progress. Please wait and try again.'})}\n\n"
             return
         

@@ -19,7 +19,7 @@ load_dotenv(dotenv_path=env_path)
 AZURE_VISION_ENDPOINT = os.getenv("AZURE_VISION_ENDPOINT")
 AZURE_VISION_KEY = os.getenv("AZURE_VISION_KEY")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GROQ_API_KEY = os.getenv("GROK_API_KEY")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 # =============================================================================
 # JWT Authentication Configuration

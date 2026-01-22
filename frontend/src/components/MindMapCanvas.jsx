@@ -15,9 +15,13 @@ const MindMapCanvas = ({
     onExitFullscreen
 }) => {
     const containerRef = useRef(null);
+    const panRef = useRef(pan);
     const [isPanning, setIsPanning] = useState(false);
     const [panStart, setPanStart] = useState({ x: 0, y: 0 });
     const [containerSize, setContainerSize] = useState({ width: 800, height: 600 });
+
+    // Keep panRef in sync
+    useEffect(() => { panRef.current = pan; }, [pan]);
 
     // Track nodes that just appeared (for animation)
     const [newlyVisibleNodes, setNewlyVisibleNodes] = useState({});
@@ -281,25 +285,37 @@ const MindMapCanvas = ({
                 newY = Math.max(minPanY, Math.min(maxPanY, newY));
             }
 
-            setPan({ x: newX, y: newY });
+            const newPan = { x: newX, y: newY };
+            panRef.current = newPan;
+            setPan(newPan);
         }
     };
 
     const handleMouseUp = () => {
         if (isPanning) {
-            localStorage.setItem(`mindmap_pan_${conversationId}`, JSON.stringify(pan));
+            localStorage.setItem(`mindmap_pan_${conversationId}`, JSON.stringify(panRef.current));
         }
         setIsPanning(false);
     };
 
-    // Zoom handlers
-    const handleWheel = (e) => {
+    // Zoom handler for native event
+    const handleWheel = useCallback((e) => {
         e.preventDefault();
         const delta = e.deltaY > 0 ? -0.05 : 0.05;
-        const newZoom = Math.max(0.25, Math.min(2.5, zoom + delta));
-        setZoom(newZoom);
-        localStorage.setItem(`mindmap_zoom_${conversationId}`, JSON.stringify(newZoom));
-    };
+        setZoom(prevZoom => {
+            const newZoom = Math.max(0.25, Math.min(2.5, prevZoom + delta));
+            localStorage.setItem(`mindmap_zoom_${conversationId}`, JSON.stringify(newZoom));
+            return newZoom;
+        });
+    }, [conversationId, setZoom]);
+
+    // Use native event listener for wheel to avoid passive listener issue
+    useEffect(() => {
+        const container = containerRef.current;
+        if (!container) return;
+        container.addEventListener('wheel', handleWheel, { passive: false });
+        return () => container.removeEventListener('wheel', handleWheel);
+    }, [handleWheel]);
 
     const handleZoomIn = () => {
         const newZoom = Math.min(2.5, zoom + 0.12);
@@ -430,7 +446,6 @@ const MindMapCanvas = ({
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}
                 onMouseLeave={handleMouseUp}
-                onWheel={handleWheel}
             >
                 <div
                     style={{
@@ -459,24 +474,29 @@ const MindMapCanvas = ({
                             // If new, start line from Parent to Parent (collapsed)
                             // If not new, line is Parent to Child (expanded)
 
-                            // We use CSS transition on the 'd' attribute if user browser supports it, 
-                            // which provides the "growing line" effect
+                            // Use stroke-dasharray animation for "drawing" effect
+                            // The `d` attribute cannot be animated via CSS
 
-                            const startD = createCurvedPath(conn.fromX, conn.fromY, conn.fromX, conn.fromY);
-                            const endD = createCurvedPath(conn.fromX, conn.fromY, conn.toX, conn.toY);
+                            const pathD = createCurvedPath(conn.fromX, conn.fromY, conn.toX, conn.toY);
+                            // Estimate path length (rough approximation for cubic bezier)
+                            const dx = conn.toX - conn.fromX;
+                            const dy = conn.toY - conn.fromY;
+                            const pathLength = Math.sqrt(dx * dx + dy * dy) * 1.2;
 
                             return (
                                 <path
                                     key={conn.id}
-                                    d={isNew ? startD : endD}
+                                    d={pathD}
                                     fill="none"
                                     stroke={lineColor}
                                     strokeWidth={2}
                                     strokeLinecap="round"
                                     style={{
-                                        // Transition d path to make line grow
-                                        transition: 'd 1s cubic-bezier(0.19, 1, 0.22, 1), opacity 0.3s ease',
-                                        opacity: 1 // Always visible, just growing
+                                        // Use stroke-dasharray/dashoffset for draw-in animation
+                                        strokeDasharray: pathLength,
+                                        strokeDashoffset: isNew ? pathLength : 0,
+                                        transition: 'stroke-dashoffset 1s cubic-bezier(0.19, 1, 0.22, 1), opacity 0.3s ease',
+                                        opacity: 1
                                     }}
                                 />
                             );

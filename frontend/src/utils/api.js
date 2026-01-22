@@ -32,22 +32,21 @@ api.interceptors.response.use(
   }
 )
 
-// Helper function for local mode requests with retry (queue-based)
+// Helper function for local mode requests with retry
 const localModeRetry = async (fetchFn, maxRetries = 5, retryDelay = 3000) => {
-  let lastError;
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
+  const retries = Math.max(1, maxRetries);
+  let lastError = new Error('No attempts made');
+  for (let attempt = 0; attempt < retries; attempt++) {
     try {
       return await fetchFn();
     } catch (error) {
       lastError = error;
       const errorMsg = error.message || '';
-      // Check if it's an "Ollama busy" error - retry automatically
       if (errorMsg.includes('busy') || errorMsg.includes('Ollama is busy')) {
-        console.log(`[LocalMode] Ollama busy, retrying in ${retryDelay/1000}s... (attempt ${attempt + 1}/${maxRetries})`);
+        console.log(`[LocalMode] Ollama busy, retrying in ${retryDelay/1000}s... (attempt ${attempt + 1}/${retries})`);
         await new Promise(resolve => setTimeout(resolve, retryDelay));
         continue;
       }
-      // For other errors, throw immediately
       throw error;
     }
   }

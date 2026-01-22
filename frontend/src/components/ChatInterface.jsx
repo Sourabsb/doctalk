@@ -602,6 +602,9 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
   // Load conversation
   useEffect(() => {
     if (conversationId) {
+      const currentId = conversationId;
+      let cancelled = false;
+      
       // Reset lazy-load refs when conversation changes
       flashcardsFetchedRef.current = false;
       mindMapFetchedRef.current = false;
@@ -611,10 +614,11 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
       setShowMindMap(false);
       loadConversation();
       
-      // Pre-fetch flashcards and mindmap data to show tick marks
+      // Pre-fetch flashcards and mindmap data
       (async () => {
         try {
-          const flashcardsData = await getFlashcards(conversationId);
+          const flashcardsData = await getFlashcards(currentId);
+          if (cancelled || currentId !== conversationId) return;
           if (flashcardsData.flashcards && flashcardsData.flashcards.length > 0) {
             setFlashcards(flashcardsData.flashcards);
             flashcardsFetchedRef.current = true;
@@ -622,21 +626,25 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
         } catch (e) { /* ignore */ }
         
         try {
-          const mindMapResult = await getMindMap(conversationId);
+          const mindMapResult = await getMindMap(currentId);
+          if (cancelled || currentId !== conversationId) return;
           if (mindMapResult) {
             setMindMapData(mindMapResult);
             mindMapFetchedRef.current = true;
-            const savedExpanded = localStorage.getItem(`mindmap_expanded_${conversationId}`);
-            if (savedExpanded) {
-              setExpandedNodes(JSON.parse(savedExpanded));
-            } else {
-              const initialExpanded = {};
-              mindMapResult.nodes?.forEach(node => { initialExpanded[node.id] = true; });
-              setExpandedNodes(initialExpanded);
-            }
+            try {
+              const savedExpanded = localStorage.getItem(`mindmap_expanded_${currentId}`);
+              if (savedExpanded) setExpandedNodes(JSON.parse(savedExpanded));
+              else {
+                const initialExpanded = {};
+                mindMapResult.nodes?.forEach(node => { initialExpanded[node.id] = true; });
+                setExpandedNodes(initialExpanded);
+              }
+            } catch { setExpandedNodes({}); }
           }
         } catch (e) { /* ignore */ }
       })();
+      
+      return () => { cancelled = true; };
     } else {
       setMessages([]);
       setConversationMessages([]);
@@ -1000,18 +1008,19 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
   // Fetch existing flashcards (lazy load on first click)
   const fetchExistingFlashcards = async () => {
     if (!conversationId || flashcardsFetchedRef.current) return false;
-    flashcardsFetchedRef.current = true;
     
     try {
       const flashcardsData = await getFlashcards(conversationId);
       if (flashcardsData.flashcards && flashcardsData.flashcards.length > 0) {
         setFlashcards(flashcardsData.flashcards);
-        return true; // Has flashcards
+        flashcardsFetchedRef.current = true;
+        return true;
       }
+      flashcardsFetchedRef.current = true;
     } catch (e) {
-      // Flashcards not available, ignore
+      // Don't set ref on error to allow retry
     }
-    return false; // No flashcards
+    return false;
   };
 
   const handleGenerateFlashcards = async () => {
@@ -1094,28 +1103,34 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
   // Fetch existing mind map (lazy load on first click)
   const fetchExistingMindMap = async () => {
     if (!conversationId || mindMapFetchedRef.current) return;
-    mindMapFetchedRef.current = true;
     
     try {
       const mindMapResult = await getMindMap(conversationId);
       if (mindMapResult) {
         setMindMapData(mindMapResult);
-        const savedExpanded = localStorage.getItem(`mindmap_expanded_${conversationId}`);
-        if (savedExpanded) {
-          setExpandedNodes(JSON.parse(savedExpanded));
-        } else {
-          const initialExpanded = {};
-          mindMapResult.nodes?.forEach(node => { initialExpanded[node.id] = true; });
-          setExpandedNodes(initialExpanded);
-        }
-        const savedZoom = localStorage.getItem(`mindmap_zoom_${conversationId}`);
-        if (savedZoom) setMindMapZoom(JSON.parse(savedZoom));
-        const savedPan = localStorage.getItem(`mindmap_pan_${conversationId}`);
-        if (savedPan) setMindMapPan(JSON.parse(savedPan));
-        return true; // Mind map exists
+        mindMapFetchedRef.current = true;
+        try {
+          const savedExpanded = localStorage.getItem(`mindmap_expanded_${conversationId}`);
+          if (savedExpanded) setExpandedNodes(JSON.parse(savedExpanded));
+          else {
+            const initialExpanded = {};
+            mindMapResult.nodes?.forEach(node => { initialExpanded[node.id] = true; });
+            setExpandedNodes(initialExpanded);
+          }
+        } catch { setExpandedNodes({}); }
+        try {
+          const savedZoom = localStorage.getItem(`mindmap_zoom_${conversationId}`);
+          if (savedZoom) setMindMapZoom(JSON.parse(savedZoom));
+        } catch { /* use default */ }
+        try {
+          const savedPan = localStorage.getItem(`mindmap_pan_${conversationId}`);
+          if (savedPan) setMindMapPan(JSON.parse(savedPan));
+        } catch { /* use default */ }
+        return true;
       }
+      mindMapFetchedRef.current = true;
     } catch (e) {
-      // Mind map not available
+      // Don't set ref on error to allow retry
     }
     return false;
   };

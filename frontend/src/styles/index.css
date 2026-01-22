@@ -314,12 +314,10 @@ html {
   }
 }
 
-.prose p:last-of-type::after,
-.prose li:last-of-type::after {
-  content: '';
-}
-
-/* Make the cursor character blink */
-.prose *:last-child {
-  animation-name: none;
+/* Streaming cursor indicator - applied via .streaming-cursor class in ChatInterface */
+.streaming-cursor::after {
+  content: '|';
+  animation: blink-cursor 1s step-end infinite;
+  margin-left: 2px;
+  font-weight: normal;
 }

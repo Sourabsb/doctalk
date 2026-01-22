@@ -15,20 +15,24 @@ logger = logging.getLogger(__name__)
 
 
 # ============== LLM Queue / Lock System ==============
-# Global locks for serializing LLM requests (Ollama can only handle one at a time)
 
 _conversation_locks: Dict[int, asyncio.Semaphore] = {}
 _conversation_acquired: Dict[int, bool] = {}
-_global_lock = asyncio.Lock()
-# Per-event-loop semaphores to avoid cross-loop/worker issues
+_global_lock_storage: Dict[int, asyncio.Lock] = {}
 _local_mode_semaphores: Dict[int, asyncio.Semaphore] = {}
 
 
+def _get_global_lock() -> asyncio.Lock:
+    """Get or create a global lock for the current event loop."""
+    loop = asyncio.get_running_loop()
+    loop_id = id(loop)
+    if loop_id not in _global_lock_storage:
+        _global_lock_storage[loop_id] = asyncio.Lock()
+    return _global_lock_storage[loop_id]
+
+
 def _get_local_semaphore() -> asyncio.Semaphore:
-    """Get or create a local mode semaphore for the current event loop.
-    
-    Each event loop gets its own semaphore to avoid cross-loop issues.
-    """
+    """Get or create a local mode semaphore for the current event loop."""
     loop = asyncio.get_running_loop()
     loop_id = id(loop)
     if loop_id not in _local_mode_semaphores:
@@ -38,7 +42,7 @@ def _get_local_semaphore() -> asyncio.Semaphore:
 
 async def _get_conversation_lock(conversation_id: int) -> asyncio.Semaphore:
     """Get or create a semaphore for a specific conversation."""
-    async with _global_lock:
+    async with _get_global_lock():
         if conversation_id not in _conversation_locks:
             _conversation_locks[conversation_id] = asyncio.Semaphore(1)
             _conversation_acquired[conversation_id] = False
@@ -49,22 +53,24 @@ async def acquire_llm_lock(conversation_id: int, timeout: float = 180.0) -> bool
     """Acquire the LLM lock for a conversation (used for streaming)."""
     semaphore = await _get_conversation_lock(conversation_id)
     try:
-        acquired = await asyncio.wait_for(semaphore.acquire(), timeout=timeout)
-        if acquired:
-            # Protect mutation of shared state with global lock
-            async with _global_lock:
-                _conversation_acquired[conversation_id] = True
-        return acquired
+        await asyncio.wait_for(semaphore.acquire(), timeout=timeout)
     except asyncio.TimeoutError:
         return False
+    except asyncio.CancelledError:
+        return False
+    
+    try:
+        async with _get_global_lock():
+            _conversation_acquired[conversation_id] = True
+        return True
+    except Exception:
+        semaphore.release()
+        raise
 
 
 async def release_llm_lock(conversation_id: int):
-    """Release the LLM lock for a conversation.
-    
-    This is async to properly coordinate with the global lock for thread safety.
-    """
-    async with _global_lock:
+    """Release the LLM lock for a conversation."""
+    async with _get_global_lock():
         if conversation_id in _conversation_locks and _conversation_acquired.get(conversation_id, False):
             try:
                 _conversation_locks[conversation_id].release()
@@ -73,14 +79,19 @@ async def release_llm_lock(conversation_id: int):
                 pass
 
 
+async def cleanup_conversation_locks(conversation_id: int):
+    """Remove lock entries for a finished conversation."""
+    async with _get_global_lock():
+        _conversation_locks.pop(conversation_id, None)
+        _conversation_acquired.pop(conversation_id, None)
+
+
 @asynccontextmanager
 async def LLMRequestContext(conversation_id: int, timeout: float = 120.0):
     """Async context manager that serializes LLM requests per conversation."""
     semaphore = await _get_conversation_lock(conversation_id)
     try:
-        acquired = await asyncio.wait_for(semaphore.acquire(), timeout=timeout)
-        if not acquired:
-            raise TimeoutError("Could not acquire LLM lock")
+        await asyncio.wait_for(semaphore.acquire(), timeout=timeout)
         yield
     except asyncio.TimeoutError:
         raise TimeoutError("Another LLM request is in progress. Please wait and try again.")
@@ -96,9 +107,7 @@ async def LocalModeLock(timeout: float = 180.0):
     """Global lock for local mode - ensures only one Ollama request at a time."""
     semaphore = _get_local_semaphore()
     try:
-        acquired = await asyncio.wait_for(semaphore.acquire(), timeout=timeout)
-        if not acquired:
-            raise TimeoutError("Could not acquire local mode lock")
+        await asyncio.wait_for(semaphore.acquire(), timeout=timeout)
         yield
     except asyncio.TimeoutError:
         raise TimeoutError("Ollama is busy processing another request. Please wait.")

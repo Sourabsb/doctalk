@@ -31,7 +31,10 @@ def get_embedding_model() -> SentenceTransformer:
     global _embedding_model
     if _embedding_model is None:
         print(f"[Embeddings] Loading model: {EMBEDDING_MODEL}")
-        _embedding_model = SentenceTransformer(EMBEDDING_MODEL, trust_remote_code=True)
+        # Only allow trust_remote_code for known safe models
+        trusted_patterns = ["jinaai/jina-embeddings", "nomic-ai/nomic-embed"]
+        trust_code = any(p in EMBEDDING_MODEL for p in trusted_patterns)
+        _embedding_model = SentenceTransformer(EMBEDDING_MODEL, trust_remote_code=trust_code)
         print(f"[Embeddings] Model loaded successfully")
     return _embedding_model
 
@@ -284,9 +287,7 @@ class QdrantVectorStore:
             return raw_results
         except Exception as e:
             print(f"[Qdrant] Search error: {e}")
-            import traceback
-            traceback.print_exc()
-            return []
+            raise
     
     def delete_by_document(self, document_id: int) -> int:
         """Delete all vectors for a specific document."""
@@ -534,9 +535,8 @@ class HybridRAGProcessor:
                 metadata = chunk.get("metadata_json", {})
                 if isinstance(metadata, str):
                     try:
-                        import json
                         metadata = json.loads(metadata)
-                    except:
+                    except (json.JSONDecodeError, TypeError):
                         metadata = {}
                 fallback_results.append({
                     "content": content,
