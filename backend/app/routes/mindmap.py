@@ -120,20 +120,32 @@ def parse_mindmap_response(response_text: str) -> dict:
     except json.JSONDecodeError:
         pass
 
-    # Brace matching extraction
+    # Brace matching extraction (string-aware)
     try:
         start = cleaned.find('{')
         if start != -1:
             depth = 0
             end = start
+            in_string = False
+            escape_next = False
             for i, c in enumerate(cleaned[start:], start):
-                if c == '{':
-                    depth += 1
-                elif c == '}':
-                    depth -= 1
-                    if depth == 0:
-                        end = i + 1
-                        break
+                if escape_next:
+                    escape_next = False
+                    continue
+                if c == '\\':
+                    escape_next = True
+                    continue
+                if c == '"' and not escape_next:
+                    in_string = not in_string
+                    continue
+                if not in_string:
+                    if c == '{':
+                        depth += 1
+                    elif c == '}':
+                        depth -= 1
+                        if depth == 0:
+                            end = i + 1
+                            break
             
             json_str = cleaned[start:end]
             json_str = _remove_trailing_commas_outside_strings(json_str)
@@ -261,9 +273,15 @@ async def generate_mindmap(
     if not conversation:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
     
+    # Query chunks only from active documents
     chunks = (
         db.query(DocumentChunk)
-        .filter(DocumentChunk.conversation_id == conversation_id)
+        .join(Document, Document.id == DocumentChunk.document_id)
+        .filter(
+            DocumentChunk.conversation_id == conversation_id,
+            Document.conversation_id == conversation_id,
+            Document.is_active == True
+        )
         .order_by(DocumentChunk.chunk_index.asc())
         .all()
     )

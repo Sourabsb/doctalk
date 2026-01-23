@@ -8,6 +8,7 @@ This module provides:
 
 import hashlib
 import json
+import threading
 import uuid
 from typing import List, Dict, Sequence, Optional
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -26,6 +27,7 @@ from ..config import (
 _embedding_model: Optional[SentenceTransformer] = None
 _qdrant_client: Optional[QdrantClient] = None
 _qdrant_initialized: bool = False
+_qdrant_init_lock = threading.Lock()
 
 def get_embedding_model() -> SentenceTransformer:
     """Get or initialize the sentence transformer model (singleton pattern)."""
@@ -71,35 +73,40 @@ def get_qdrant_client() -> QdrantClient:
 
 
 def ensure_collection_exists(client: QdrantClient, collection_name: str = QDRANT_COLLECTION_NAME):
-    """Create collection if it doesn't exist."""
+    """Create collection if it doesn't exist (thread-safe)."""
     global _qdrant_initialized
     
-    # Skip if already initialized in this session
+    # Quick check without lock
     if _qdrant_initialized:
         return
     
-    try:
-        collections = client.get_collections().collections
-        exists = any(c.name == collection_name for c in collections)
+    with _qdrant_init_lock:
+        # Re-check inside lock
+        if _qdrant_initialized:
+            return
         
-        if not exists:
-            print(f"[Qdrant] Creating collection: {collection_name}")
-            client.create_collection(
-                collection_name=collection_name,
-                vectors_config=VectorParams(
-                    size=EMBEDDING_DIMENSION,
-                    distance=Distance.COSINE
+        try:
+            collections = client.get_collections().collections
+            exists = any(c.name == collection_name for c in collections)
+            
+            if not exists:
+                print(f"[Qdrant] Creating collection: {collection_name}")
+                client.create_collection(
+                    collection_name=collection_name,
+                    vectors_config=VectorParams(
+                        size=EMBEDDING_DIMENSION,
+                        distance=Distance.COSINE
+                    )
                 )
-            )
-            print(f"[Qdrant] Collection created")
-        
-        _qdrant_initialized = True
-    except Exception as e:
-        # Do NOT set _qdrant_initialized on error - allow retries
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.exception("Error ensuring Qdrant collection")
-        raise  # Re-raise to let callers fail fast
+                print(f"[Qdrant] Collection created")
+            
+            _qdrant_initialized = True
+        except Exception as e:
+            # Do NOT set _qdrant_initialized on error - allow retries
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.exception("Error ensuring Qdrant collection")
+            raise  # Re-raise to let callers fail fast
 
 
 class QdrantVectorStore:

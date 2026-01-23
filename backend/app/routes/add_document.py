@@ -1,7 +1,7 @@
 import json
 import logging
 from datetime import datetime
-from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, status
 from sqlalchemy.orm import Session
 from typing import List
 
@@ -139,17 +139,17 @@ async def add_documents_to_conversation(
             vector_store = QdrantVectorStore(conversation.id)
             chunk_count, qdrant_texts, qdrant_metadatas = vector_store.add_documents(filtered_all_text_data, source_to_doc_id)
 
-            # Save chunks to SQLite for metadata backup
+            # Save chunks to SQLite for metadata backup (use filtered data to match Qdrant)
             embedding_processor = EmbeddingProcessor()
-            embedding_processor.create_vector_store(all_text_data, precomputed_texts=qdrant_texts, precomputed_metadatas=qdrant_metadatas)
+            embedding_processor.create_vector_store(filtered_all_text_data, precomputed_texts=qdrant_texts, precomputed_metadatas=qdrant_metadatas)
             
             for idx, metadata in enumerate(embedding_processor.metadatas):
                 source = metadata.get("source", processed_files[0]) if processed_files else metadata.get("source", "Unknown")
-                filename_key = source.split("_page_")[0]
-                document = document_map.get(filename_key) or document_map.get(source)
+                # Use source_to_doc_id for consistent document_id lookup (same as Qdrant)
+                doc_id = source_to_doc_id.get(source)
                 chunk = DocumentChunk(
                     conversation_id=conversation.id,
-                    document_id=document.id if document else None,
+                    document_id=doc_id,
                     chunk_index=metadata.get("chunk_id", idx),
                     content=embedding_processor.texts[idx],
                     metadata_json=json.dumps(metadata)

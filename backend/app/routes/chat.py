@@ -590,11 +590,13 @@ async def chat_stream(
             return
         
         local_lock_ctx = None
+        local_lock_acquired = False
         try:
             # For local mode, acquire global LocalModeLock to prevent concurrent Ollama requests
             if is_local:
                 local_lock_ctx = LocalModeLock(timeout=180.0)
                 await local_lock_ctx.__aenter__()
+                local_lock_acquired = True
             
             # Check if streaming is supported (local mode)
             if hasattr(llm_client, 'generate_response_stream'):
@@ -634,8 +636,8 @@ async def chat_stream(
             error_occurred = True
             yield f"data: {json.dumps({'type': 'error', 'message': 'Ollama is busy with another request. Please wait.'})}\n\n"
         finally:
-            # Release local mode lock if acquired
-            if local_lock_ctx is not None:
+            # Release local mode lock only if it was successfully acquired
+            if local_lock_acquired and local_lock_ctx is not None:
                 try:
                     await local_lock_ctx.__aexit__(None, None, None)
                 except Exception:

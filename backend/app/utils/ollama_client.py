@@ -72,19 +72,21 @@ async def _get_conversation_lock(conversation_id: int) -> asyncio.Semaphore:
 async def acquire_llm_lock(conversation_id: int, timeout: float = 180.0) -> bool:
     """Acquire the LLM lock for a conversation (used for streaming)."""
     semaphore = await _get_conversation_lock(conversation_id)
+    acquired = False
     try:
         await asyncio.wait_for(semaphore.acquire(), timeout=timeout)
+        acquired = True
     except asyncio.TimeoutError:
         return False
-    except asyncio.CancelledError:
-        return False
+    # Don't catch CancelledError - let it propagate
     
     try:
         async with _get_global_lock():
             _get_conversation_acquired()[conversation_id] = True
         return True
     except Exception:
-        semaphore.release()
+        if acquired:
+            semaphore.release()
         raise
 
 
@@ -131,11 +133,17 @@ async def LLMRequestContext(conversation_id: int, timeout: float = 120.0):
     try:
         await asyncio.wait_for(semaphore.acquire(), timeout=timeout)
         acquired = True
+        # Mark as acquired so cleanup_conversation_locks knows lock is held
+        async with _get_global_lock():
+            _get_conversation_acquired()[conversation_id] = True
         yield
     except asyncio.TimeoutError:
         raise TimeoutError("Another LLM request is in progress. Please wait and try again.")
     finally:
         if acquired:
+            # Reset acquired flag before releasing
+            async with _get_global_lock():
+                _get_conversation_acquired()[conversation_id] = False
             semaphore.release()
 
 

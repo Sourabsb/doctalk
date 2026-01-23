@@ -57,20 +57,32 @@ def parse_flashcards_response(response_text: str) -> List[dict]:
     except json.JSONDecodeError:
         pass
 
-    # Bracket matching extraction
+    # Bracket matching extraction (string-aware)
     try:
         start = cleaned.find('[')
         if start != -1:
             depth = 0
             end = start
+            in_string = False
+            escape_next = False
             for i, c in enumerate(cleaned[start:], start):
-                if c == '[':
-                    depth += 1
-                elif c == ']':
-                    depth -= 1
-                    if depth == 0:
-                        end = i + 1
-                        break
+                if escape_next:
+                    escape_next = False
+                    continue
+                if c == '\\':
+                    escape_next = True
+                    continue
+                if c == '"' and not escape_next:
+                    in_string = not in_string
+                    continue
+                if not in_string:
+                    if c == '[':
+                        depth += 1
+                    elif c == ']':
+                        depth -= 1
+                        if depth == 0:
+                            end = i + 1
+                            break
             
             json_str = cleaned[start:end]
             json_str = re.sub(r',\s*([\]\}])', r'\1', json_str)
@@ -81,12 +93,15 @@ def parse_flashcards_response(response_text: str) -> List[dict]:
     except (json.JSONDecodeError, Exception):
         pass
     
-    # Regex extraction fallback
+    # Regex extraction fallback (handles escaped quotes)
     try:
         flashcards = []
-        pattern = r'\{\s*"front"\s*:\s*"([^"]+)"\s*,\s*"back"\s*:\s*"([^"]+)"\s*\}'
+        pattern = r'\{\s*"front"\s*:\s*"((?:\\.|[^"])*)"\s*,\s*"back"\s*:\s*"((?:\\.|[^"])*)"\s*\}'
         matches = re.findall(pattern, response_text)
         for front, back in matches:
+            # Unescape backslash-escaped characters
+            front = front.replace('\\"', '"').replace('\\\\', '\\')
+            back = back.replace('\\"', '"').replace('\\\\', '\\')
             flashcards.append({"front": front, "back": back})
         
         if flashcards:

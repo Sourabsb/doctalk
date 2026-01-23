@@ -105,14 +105,13 @@ async def upload_files(
                         if source_base != source:
                             source_to_doc_id[source_base] = document.id
             
-            # Check for unmapped sources and log warnings (do not silently fallback)
+            # Check for unmapped sources and log warnings
             available_doc_ids = {fn: doc.id for fn, doc in document_map.items()}
             for source in all_text_data.keys():
                 if source not in source_to_doc_id:
                     logger.warning(
                         "Unmapped source '%s' could not be matched to any document. "
-                        "Available documents: %s. Chunks from this source will be created with "
-                        "document_id=None (document_map.get() returns None for unmatched sources).",
+                        "Available documents: %s. Chunks will be created with document_id=None.",
                         source,
                         available_doc_ids
                     )
@@ -127,11 +126,11 @@ async def upload_files(
             
             for idx, metadata in enumerate(embedding_processor.metadatas):
                 source = metadata.get("source", processed_files[0]) if processed_files else metadata.get("source", "Unknown")
-                filename_key = source.split("_page_")[0]
-                document = document_map.get(filename_key) or document_map.get(source)
+                # Use source_to_doc_id for consistent document_id lookup (same as Qdrant)
+                doc_id = source_to_doc_id.get(source)
                 chunk = DocumentChunk(
                     conversation_id=conversation.id,
-                    document_id=document.id if document else None,
+                    document_id=doc_id,
                     chunk_index=metadata.get("chunk_id", idx),
                     content=embedding_processor.texts[idx],
                     metadata_json=json.dumps(metadata)

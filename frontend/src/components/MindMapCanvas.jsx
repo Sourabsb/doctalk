@@ -399,6 +399,8 @@ const MindMapCanvas = ({
             <div className="absolute bottom-4 right-4 flex flex-col gap-1.5 z-50" style={{ pointerEvents: 'auto' }}>
                 <button
                     onClick={handleZoomIn}
+                    aria-label="Zoom in"
+                    title="Zoom in"
                     className={`w-8 h-8 flex items-center justify-center rounded-lg border transition-all ${isDark
                         ? 'border-white/10 bg-gray-900/90 hover:bg-gray-800 text-gray-300'
                         : 'border-gray-200 bg-white/95 hover:bg-gray-50 text-gray-600'
@@ -410,6 +412,8 @@ const MindMapCanvas = ({
                 </button>
                 <button
                     onClick={handleZoomOut}
+                    aria-label="Zoom out"
+                    title="Zoom out"
                     className={`w-8 h-8 flex items-center justify-center rounded-lg border transition-all ${isDark
                         ? 'border-white/10 bg-gray-900/90 hover:bg-gray-800 text-gray-300'
                         : 'border-gray-200 bg-white/95 hover:bg-gray-50 text-gray-600'
@@ -561,6 +565,8 @@ const MindMapCanvas = ({
                                 {node.hasChildren && (
                                     <button
                                         className="mindmap-arrow flex items-center justify-center transition-all duration-200 hover:scale-105"
+                                        aria-label={node.isExpanded ? 'Collapse node' : 'Expand node'}
+                                        aria-expanded={node.isExpanded}
                                         style={{
                                             width: ARROW_SIZE,
                                             height: ARROW_SIZE,
