@@ -3,6 +3,7 @@ import logging
 import os
 import queue
 import threading
+import weakref
 from contextlib import asynccontextmanager
 from typing import List, Dict, Optional, AsyncGenerator
 
@@ -18,26 +19,25 @@ logger = logging.getLogger(__name__)
 
 _conversation_locks: Dict[int, asyncio.Semaphore] = {}
 _conversation_acquired: Dict[int, bool] = {}
-_global_lock_storage: Dict[int, asyncio.Lock] = {}
-_local_mode_semaphores: Dict[int, asyncio.Semaphore] = {}
+# Use WeakKeyDictionary to prevent memory leaks - entries removed when loop is garbage collected
+_global_lock_storage: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
+_local_mode_semaphores: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
 
 
 def _get_global_lock() -> asyncio.Lock:
     """Get or create a global lock for the current event loop."""
     loop = asyncio.get_running_loop()
-    loop_id = id(loop)
-    if loop_id not in _global_lock_storage:
-        _global_lock_storage[loop_id] = asyncio.Lock()
-    return _global_lock_storage[loop_id]
+    if loop not in _global_lock_storage:
+        _global_lock_storage[loop] = asyncio.Lock()
+    return _global_lock_storage[loop]
 
 
 def _get_local_semaphore() -> asyncio.Semaphore:
     """Get or create a local mode semaphore for the current event loop."""
     loop = asyncio.get_running_loop()
-    loop_id = id(loop)
-    if loop_id not in _local_mode_semaphores:
-        _local_mode_semaphores[loop_id] = asyncio.Semaphore(1)
-    return _local_mode_semaphores[loop_id]
+    if loop not in _local_mode_semaphores:
+        _local_mode_semaphores[loop] = asyncio.Semaphore(1)
+    return _local_mode_semaphores[loop]
 
 
 async def _get_conversation_lock(conversation_id: int) -> asyncio.Semaphore:

@@ -41,8 +41,11 @@ const localModeRetry = async (fetchFn, maxRetries = 5, retryDelay = 3000) => {
       return await fetchFn();
     } catch (error) {
       lastError = error;
+      // Check both error.message and axios error.response.data.detail for busy detection
       const errorMsg = error.message || '';
-      if (errorMsg.includes('busy') || errorMsg.includes('Ollama is busy')) {
+      const detailMsg = error.response?.data?.detail || '';
+      if (errorMsg.includes('busy') || errorMsg.includes('Ollama is busy') ||
+          detailMsg.includes('busy') || detailMsg.includes('Ollama is busy')) {
         console.log(`[LocalMode] Ollama busy, retrying in ${retryDelay/1000}s... (attempt ${attempt + 1}/${retries})`);
         await new Promise(resolve => setTimeout(resolve, retryDelay));
         continue;
@@ -351,32 +354,18 @@ export const getMindMap = async (conversationId) => {
 }
 
 export const generateMindMap = async (conversationId, cloudModel = null) => {
-  const token = localStorage.getItem('docTalkToken');
-  const API_BASE_URL = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8000`;
-
-  const fetchFn = async () => {
-    const response = await fetch(`${API_BASE_URL}/api/conversations/${conversationId}/mindmap/generate`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ cloud_model: cloudModel })
+  const generateFn = async () => {
+    const response = await api.post(`/api/conversations/${conversationId}/mindmap/generate`, {
+      cloud_model: cloudModel
     });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.detail || `HTTP error ${response.status}`);
-    }
-
-    return await response.json();
+    return response.data;
   };
 
   // Only use retry for local mode (no cloudModel means local)
   if (!cloudModel) {
-    return localModeRetry(fetchFn, 5, 3000);
+    return localModeRetry(generateFn, 5, 3000);
   }
-  return fetchFn();
+  return generateFn();
 }
 
 export const deleteMindMap = async (conversationId) => {

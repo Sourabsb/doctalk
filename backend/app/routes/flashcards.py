@@ -222,9 +222,9 @@ BAD examples (avoid these):
 GOOD examples:
 - "What is LoRA in machine learning?" -> "LoRA (Low-Rank Adaptation) is a technique for efficiently fine-tuning large language models by adding small trainable matrices to attention layers, reducing memory and compute requirements while maintaining model quality."
 - "What does RAG stand for and what is it used for?" -> "RAG (Retrieval-Augmented Generation) combines document retrieval with LLM generation to answer questions using external knowledge sources, improving accuracy and reducing hallucinations."
-
+{dedup_instruction}
 Output ONLY valid JSON array, no other text:
-[{{"front": "Question?", "back": "Detailed educational answer"}}]{dedup_instruction}
+[{{"front": "Question?", "back": "Detailed educational answer"}}]
 
 Document:
 {truncated_context}"""

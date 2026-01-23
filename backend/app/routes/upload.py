@@ -119,6 +119,7 @@ async def upload_files(
 
             vector_store = QdrantVectorStore(conversation.id)
             chunk_count, qdrant_texts, qdrant_metadatas = vector_store.add_documents(all_text_data, source_to_doc_id)
+            logger.info("Added %d chunks to Qdrant for conversation %d", chunk_count, conversation.id)
 
             # Save chunks to SQLite for metadata backup
             embedding_processor = EmbeddingProcessor()

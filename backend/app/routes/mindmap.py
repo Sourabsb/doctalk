@@ -1,5 +1,7 @@
 from typing import List
+import asyncio
 import json
+import logging
 import re
 from fastapi import APIRouter, HTTPException, Depends, status
 from sqlalchemy.orm import Session
@@ -9,6 +11,8 @@ from ..models.db_models import Conversation, DocumentChunk, MindMap, Document
 from ..models.schemas import MindMapResponse, MindMapGenerateRequest, MindMapNode
 from ..utils.llm_router import get_llm_client
 from ..utils.ollama_client import LocalModeLock
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["mindmap"])
 
@@ -302,15 +306,16 @@ Document content:
         else:
             result = await llm_client.generate_response(prompt, [], [], "")
             response_text = result.get("response", "")
-    except TimeoutError:
+    except asyncio.TimeoutError:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Ollama is busy with another request. Please wait a moment and try again."
         )
     except Exception as e:
+        logger.exception("Failed to generate mind map: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to generate mind map: {str(e)}"
+            detail="Failed to generate mind map"
         )
     
     mindmap_data = parse_mindmap_response(response_text)

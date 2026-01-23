@@ -6,6 +6,7 @@ This module provides:
 - HybridRAGProcessor: Combines document RAG + chat history for context building
 """
 
+import hashlib
 import json
 import uuid
 from typing import List, Dict, Sequence, Optional
@@ -31,9 +32,9 @@ def get_embedding_model() -> SentenceTransformer:
     global _embedding_model
     if _embedding_model is None:
         print(f"[Embeddings] Loading model: {EMBEDDING_MODEL}")
-        # Only allow trust_remote_code for known safe models
-        trusted_patterns = ["jinaai/jina-embeddings", "nomic-ai/nomic-embed"]
-        trust_code = any(p in EMBEDDING_MODEL for p in trusted_patterns)
+        # Only allow trust_remote_code for known safe models (use startswith for strict matching)
+        trusted_prefixes = ["jinaai/jina-embeddings", "nomic-ai/nomic-embed"]
+        trust_code = any(EMBEDDING_MODEL.startswith(prefix) for prefix in trusted_prefixes)
         _embedding_model = SentenceTransformer(EMBEDDING_MODEL, trust_remote_code=trust_code)
         print(f"[Embeddings] Model loaded successfully")
     return _embedding_model
@@ -168,10 +169,20 @@ class QdrantVectorStore:
         print(f"[Qdrant] Generating embeddings for {len(texts)} chunks...")
         embeddings = self.embed_texts(texts)
         
-        # Create points for Qdrant
+        # Create points for Qdrant with deterministic IDs
         points = []
         for i, (text, embedding, metadata) in enumerate(zip(texts, embeddings, metadatas)):
-            point_id = str(uuid.uuid4())
+            # Generate deterministic ID from document_id + chunk_index, or hash of source + content
+            doc_id = metadata.get("document_id")
+            chunk_idx = metadata.get("chunk_index", i)
+            if doc_id is not None:
+                # Use document_id and chunk_index for deterministic ID
+                point_id = f"{self.conversation_id}_{doc_id}_{chunk_idx}"
+            else:
+                # Fallback: hash source + chunk content for deterministic ID
+                source = metadata.get("source", "unknown")
+                hash_input = f"{self.conversation_id}:{source}:{chunk_idx}:{text[:100]}"
+                point_id = hashlib.sha256(hash_input.encode()).hexdigest()[:32]
             points.append(PointStruct(
                 id=point_id,
                 vector=embedding,
@@ -359,6 +370,11 @@ class EmbeddingProcessor:
         if precomputed_texts is not None and precomputed_metadatas is not None:
             self.texts = precomputed_texts
             self.metadatas = precomputed_metadatas
+            # Validate precomputed data same as computed path
+            if not self.texts:
+                raise ValueError("No documents to process")
+            if len(self.texts) != len(self.metadatas):
+                raise ValueError(f"Texts/metadatas length mismatch: {len(self.texts)} vs {len(self.metadatas)}")
             return self
         
         # Otherwise, process from scratch
@@ -404,6 +420,7 @@ class HybridRAGProcessor:
         )
         self._chat_texts = []
         self._chat_metadatas = []
+        self._chat_embeddings = None
     
     def load_documents(self, chunks: Sequence[Dict] = None, document_ids: List[int] = None):
         """
@@ -465,24 +482,30 @@ class HybridRAGProcessor:
         self._chat_texts = texts
         self._chat_metadatas = metadatas
         
+        # Pre-compute and cache chat embeddings
+        if texts:
+            model = get_embedding_model()
+            self._chat_embeddings = model.encode(texts)
+        else:
+            self._chat_embeddings = None
+        
         return self
     
     def _search_chat_history(self, query: str, k: int = 3) -> List[Dict]:
-        """Search chat history using embedding similarity."""
-        if not self._chat_texts:
+        """Search chat history using cached embedding similarity."""
+        if not self._chat_texts or self._chat_embeddings is None:
             return []
         
         model = get_embedding_model()
         query_emb = model.encode(query)
-        text_embs = model.encode(self._chat_texts)
         
         # Compute cosine similarities with epsilon to guard against zero-norm division
         import numpy as np
         epsilon = 1e-8
-        text_norms = np.linalg.norm(text_embs, axis=1)
+        text_norms = np.linalg.norm(self._chat_embeddings, axis=1)
         query_norm = np.linalg.norm(query_emb)
         # Add epsilon to prevent division by zero
-        similarities = np.dot(text_embs, query_emb) / (
+        similarities = np.dot(self._chat_embeddings, query_emb) / (
             np.maximum(text_norms, epsilon) * max(query_norm, epsilon)
         )
         

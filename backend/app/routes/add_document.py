@@ -109,19 +109,22 @@ async def add_documents_to_conversation(
                 if source_stem in stem_to_doc and stem_to_doc[source_stem] is not None:
                     source_to_doc_id[source] = stem_to_doc[source_stem]
             
-            # Check for unmapped sources and log warnings (do not silently fallback)
+            # Check for unmapped sources and filter them out
             available_doc_ids = {fn: doc.id for fn, doc in document_map.items()}
-            for source in all_text_data.keys():
-                if source not in source_to_doc_id:
+            filtered_all_text_data = {}
+            for source, text in all_text_data.items():
+                if source in source_to_doc_id:
+                    filtered_all_text_data[source] = text
+                else:
                     logger.warning(
                         "Unmapped source '%s' could not be matched to any document. "
-                        "Available documents: %s. Source will be skipped for document association.",
+                        "Available documents: %s. Skipping this source.",
                         source,
                         available_doc_ids
                     )
 
             vector_store = QdrantVectorStore(conversation.id)
-            chunk_count, qdrant_texts, qdrant_metadatas = vector_store.add_documents(all_text_data, source_to_doc_id)
+            chunk_count, qdrant_texts, qdrant_metadatas = vector_store.add_documents(filtered_all_text_data, source_to_doc_id)
 
             # Save chunks to SQLite for metadata backup
             embedding_processor = EmbeddingProcessor()
