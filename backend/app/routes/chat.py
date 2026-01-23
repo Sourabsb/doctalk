@@ -589,32 +589,34 @@ async def chat_stream(
             yield f"data: {json.dumps({'type': 'error', 'message': 'Another request is in progress. Please wait and try again.'})}\n\n"
             return
         
-        local_lock_ctx = None
-        local_lock_acquired = False
         try:
-            # For local mode, acquire global LocalModeLock to prevent concurrent Ollama requests
-            if is_local:
-                local_lock_ctx = LocalModeLock(timeout=180.0)
-                await local_lock_ctx.__aenter__()
-                local_lock_acquired = True
-            
             # Check if streaming is supported (local mode)
             if hasattr(llm_client, 'generate_response_stream'):
                 try:
-                    async for token in llm_client.generate_response_stream(
-                        chat_request.message,
-                        formatted_context_docs,
-                        recent_context,
-                        combined_context
-                    ):
-                        full_response += token
-                        yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
+                    if is_local:
+                        async with LocalModeLock(timeout=180.0):
+                            async for token in llm_client.generate_response_stream(
+                                chat_request.message,
+                                formatted_context_docs,
+                                recent_context,
+                                combined_context
+                            ):
+                                full_response += token
+                                yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
+                    else:
+                        async for token in llm_client.generate_response_stream(
+                            chat_request.message,
+                            formatted_context_docs,
+                            recent_context,
+                            combined_context
+                        ):
+                            full_response += token
+                            yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
                 except Exception as e:
                     error_occurred = True
                     error_message = str(e)
                     yield f"data: {json.dumps({'type': 'error', 'message': error_message})}\n\n"
             else:
-                # Fallback to non-streaming for API mode
                 try:
                     result = await llm_client.generate_response(
                         chat_request.message,
@@ -623,7 +625,6 @@ async def chat_stream(
                         combined_context
                     )
                     full_response = result["response"]
-                    # Send in chunks to simulate streaming
                     words = full_response.split(' ')
                     for i, word in enumerate(words):
                         token = word + (' ' if i < len(words) - 1 else '')
@@ -636,13 +637,6 @@ async def chat_stream(
             error_occurred = True
             yield f"data: {json.dumps({'type': 'error', 'message': 'Ollama is busy with another request. Please wait.'})}\n\n"
         finally:
-            # Release local mode lock only if it was successfully acquired
-            if local_lock_acquired and local_lock_ctx is not None:
-                try:
-                    await local_lock_ctx.__aexit__(None, None, None)
-                except Exception:
-                    pass
-            # Always release the conversation lock
             await release_llm_lock(conv_id)
 
         # Save assistant message after streaming completes (even on error to prevent orphaned user messages)

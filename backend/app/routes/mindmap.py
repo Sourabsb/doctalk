@@ -323,8 +323,14 @@ Document content:
             async with LocalModeLock(timeout=180.0):
                 response_text = await llm_client.generate_simple_response(prompt)
         else:
-            result = await llm_client.generate_response(prompt, [], [], "")
-            response_text = result.get("response", "")
+            result = await asyncio.wait_for(
+                llm_client.generate_response(prompt, [], [], ""),
+                timeout=180.0
+            )
+            if result and isinstance(result, dict):
+                response_text = result.get("response", "")
+            else:
+                response_text = ""
     except asyncio.TimeoutError:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -371,6 +377,11 @@ Document content:
         except IntegrityError:
             db.rollback()
             existing = db.query(MindMap).filter(MindMap.conversation_id == conversation_id).first()
+            if existing is None:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to create or retrieve mind map due to concurrent access"
+                )
             existing.title = title
             existing.data_json = data_json
             db.commit()

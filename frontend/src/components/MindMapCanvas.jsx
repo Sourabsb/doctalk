@@ -286,25 +286,38 @@ const MindMapCanvas = ({
         }
     };
 
+    const safeLocalStorageSet = (key, value) => {
+        try {
+            if (typeof window !== 'undefined' && window.localStorage) {
+                localStorage.setItem(key, value);
+            }
+        } catch (e) {
+            console.warn('localStorage write failed:', e);
+        }
+    };
+
     const handleMouseUp = () => {
         if (isPanning) {
-            localStorage.setItem(`mindmap_pan_${conversationId}`, JSON.stringify(panRef.current));
+            try {
+                const panJson = JSON.stringify(panRef.current);
+                safeLocalStorageSet(`mindmap_pan_${conversationId}`, panJson);
+            } catch (e) {
+                console.warn('Failed to save pan state:', e);
+            }
         }
         setIsPanning(false);
     };
 
-    // Zoom handler for native event
     const handleWheel = useCallback((e) => {
         e.preventDefault();
         const delta = e.deltaY > 0 ? -0.05 : 0.05;
         setZoom(prevZoom => {
             const newZoom = Math.max(0.25, Math.min(2.5, prevZoom + delta));
-            localStorage.setItem(`mindmap_zoom_${conversationId}`, JSON.stringify(newZoom));
+            safeLocalStorageSet(`mindmap_zoom_${conversationId}`, JSON.stringify(newZoom));
             return newZoom;
         });
     }, [conversationId, setZoom]);
 
-    // Use native event listener for wheel to avoid passive listener issue
     useEffect(() => {
         const container = containerRef.current;
         if (!container) return;
@@ -315,20 +328,20 @@ const MindMapCanvas = ({
     const handleZoomIn = () => {
         const newZoom = Math.min(2.5, zoom + 0.12);
         setZoom(newZoom);
-        localStorage.setItem(`mindmap_zoom_${conversationId}`, JSON.stringify(newZoom));
+        safeLocalStorageSet(`mindmap_zoom_${conversationId}`, JSON.stringify(newZoom));
     };
 
     const handleZoomOut = () => {
         const newZoom = Math.max(0.25, zoom - 0.12);
         setZoom(newZoom);
-        localStorage.setItem(`mindmap_zoom_${conversationId}`, JSON.stringify(newZoom));
+        safeLocalStorageSet(`mindmap_zoom_${conversationId}`, JSON.stringify(newZoom));
     };
 
     const handleReset = () => {
         setZoom(0.85);
         setPan({ x: 0, y: 0 });
-        localStorage.setItem(`mindmap_zoom_${conversationId}`, JSON.stringify(0.85));
-        localStorage.setItem(`mindmap_pan_${conversationId}`, JSON.stringify({ x: 0, y: 0 }));
+        safeLocalStorageSet(`mindmap_zoom_${conversationId}`, JSON.stringify(0.85));
+        safeLocalStorageSet(`mindmap_pan_${conversationId}`, JSON.stringify({ x: 0, y: 0 }));
     };
 
     // Node styles

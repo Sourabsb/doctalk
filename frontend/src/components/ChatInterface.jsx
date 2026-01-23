@@ -438,6 +438,15 @@ const MarkdownRenderer = ({ content, isDark, sources = [], sourceChunks = [], on
 };
 
 const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false }) => {
+  // Window width state for reactive sizing
+  const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
+  
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   // Panel states
   const [leftPanelWidth, setLeftPanelWidth] = useState(320);
   const [rightPanelWidth, setRightPanelWidth] = useState(320);
@@ -2212,8 +2221,8 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
         width={sourcePreview ? 400 : leftPanelWidth}
         minWidth={sourcePreview ? 400 : 150}
         maxWidth={sourcePreview ? 500 : Math.max(150, Math.min(
-          Math.floor(window.innerWidth * 0.35),
-          window.innerWidth - (rightPanelCollapsed ? 48 : rightPanelWidth) - 450 - 32
+          Math.floor(windowWidth * 0.35),
+          windowWidth - (rightPanelCollapsed ? 48 : rightPanelWidth) - 450 - 32
         ))}
         onResize={sourcePreview ? () => { } : setLeftPanelWidth}
         side="left"
@@ -2962,11 +2971,11 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
 
       {/* Right Panel - Studio */}
       <ResizablePanel
-        width={showMindMap ? (mindMapCanvasMode ? window.innerWidth : Math.max(450, rightPanelWidth)) : (showNoteInput || showFlashcards) ? Math.max(editorFixedWidth, rightPanelWidth) : rightPanelWidth}
+        width={showMindMap ? (mindMapCanvasMode ? windowWidth : Math.max(450, rightPanelWidth)) : (showNoteInput || showFlashcards) ? Math.max(editorFixedWidth, rightPanelWidth) : rightPanelWidth}
         minWidth={showMindMap ? 450 : (showNoteInput || showFlashcards) ? editorFixedWidth : 150}
-        maxWidth={showMindMap ? (mindMapCanvasMode ? window.innerWidth : Math.max(450, window.innerWidth - (leftPanelCollapsed ? 80 : leftPanelWidth) - 450)) : (showNoteInput || showFlashcards) ? editorFixedWidth : Math.max(150, Math.min(
-          Math.floor(window.innerWidth * 0.35),
-          window.innerWidth - (leftPanelCollapsed ? 48 : leftPanelWidth) - 450 - 32
+        maxWidth={showMindMap ? (mindMapCanvasMode ? windowWidth : Math.max(450, windowWidth - (leftPanelCollapsed ? 80 : leftPanelWidth) - 450)) : (showNoteInput || showFlashcards) ? editorFixedWidth : Math.max(150, Math.min(
+          Math.floor(windowWidth * 0.35),
+          windowWidth - (leftPanelCollapsed ? 48 : leftPanelWidth) - 450 - 32
         ))}
         onResize={showMindMap && !mindMapCanvasMode ? setRightPanelWidth : (showNoteInput || showFlashcards) ? () => { } : setRightPanelWidth}
         side="right"

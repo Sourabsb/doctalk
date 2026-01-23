@@ -269,7 +269,10 @@ Document:
                 [],
                 ""
             )
-            response_text = result.get("response", "")
+            if result and isinstance(result, dict):
+                response_text = result.get("response", "")
+            else:
+                response_text = ""
     except TimeoutError:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

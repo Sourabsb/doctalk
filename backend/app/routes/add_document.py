@@ -144,7 +144,13 @@ async def add_documents_to_conversation(
             embedding_processor.create_vector_store(filtered_all_text_data, precomputed_texts=qdrant_texts, precomputed_metadatas=qdrant_metadatas)
             
             for idx, metadata in enumerate(embedding_processor.metadatas):
-                source = metadata.get("source", processed_files[0]) if processed_files else metadata.get("source", "Unknown")
+                source = metadata.get("source")
+                if source is None:
+                    logger.warning(
+                        "Skipping chunk with missing source for conversation %d, chunk_id=%s",
+                        conversation.id, metadata.get("chunk_id", idx)
+                    )
+                    continue
                 doc_id = source_to_doc_id.get(source)
                 if doc_id is None:
                     logger.warning(
