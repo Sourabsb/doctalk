@@ -609,12 +609,13 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
   }, [showNoteInput, editingNoteId]);
 
   // Load conversation
+  const latestConversationIdRef = useRef(conversationId);
   useEffect(() => {
+    latestConversationIdRef.current = conversationId;
     if (conversationId) {
       const currentId = conversationId;
       let cancelled = false;
       
-      // Reset lazy-load refs when conversation changes
       flashcardsFetchedRef.current = false;
       mindMapFetchedRef.current = false;
       setFlashcards([]);
@@ -623,20 +624,21 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
       setShowMindMap(false);
       loadConversation();
       
-      // Pre-fetch flashcards and mindmap data
       (async () => {
         try {
           const flashcardsData = await getFlashcards(currentId);
-          if (cancelled || currentId !== conversationId) return;
+          if (cancelled || currentId !== latestConversationIdRef.current) return;
           if (flashcardsData.flashcards && flashcardsData.flashcards.length > 0) {
             setFlashcards(flashcardsData.flashcards);
             flashcardsFetchedRef.current = true;
           }
-        } catch (e) { /* ignore */ }
+        } catch (e) {
+          if (process.env.NODE_ENV !== 'production') console.error('Failed to fetch flashcards:', e);
+        }
         
         try {
           const mindMapResult = await getMindMap(currentId);
-          if (cancelled || currentId !== conversationId) return;
+          if (cancelled || currentId !== latestConversationIdRef.current) return;
           if (mindMapResult) {
             setMindMapData(mindMapResult);
             mindMapFetchedRef.current = true;
@@ -650,7 +652,9 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
               }
             } catch { setExpandedNodes({}); }
           }
-        } catch (e) { /* ignore */ }
+        } catch (e) {
+          if (process.env.NODE_ENV !== 'production') console.error('Failed to fetch mindmap:', e);
+        }
       })();
       
       return () => { cancelled = true; };

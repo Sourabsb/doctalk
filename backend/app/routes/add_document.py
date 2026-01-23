@@ -143,21 +143,22 @@ async def add_documents_to_conversation(
             embedding_processor = EmbeddingProcessor()
             embedding_processor.create_vector_store(filtered_all_text_data, precomputed_texts=qdrant_texts, precomputed_metadatas=qdrant_metadatas)
             
+            chunks_added = 0
             for idx, metadata in enumerate(embedding_processor.metadatas):
                 source = metadata.get("source")
                 if source is None:
-                    logger.warning(
-                        "Skipping chunk with missing source for conversation %d, chunk_id=%s",
-                        conversation.id, metadata.get("chunk_id", idx)
+                    vector_store.delete_by_conversation()
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail=f"Pipeline error: chunk {idx} missing source metadata for conversation {conversation.id}"
                     )
-                    continue
                 doc_id = source_to_doc_id.get(source)
                 if doc_id is None:
-                    logger.warning(
-                        "Skipping chunk with unmapped source '%s' for conversation %d",
-                        source, conversation.id
+                    vector_store.delete_by_conversation()
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail=f"Pipeline error: unmapped source '{source}' for conversation {conversation.id}"
                     )
-                    continue
                 chunk = DocumentChunk(
                     conversation_id=conversation.id,
                     document_id=doc_id,
@@ -166,6 +167,7 @@ async def add_documents_to_conversation(
                     metadata_json=json.dumps(metadata)
                 )
                 db.add(chunk)
+                chunks_added += 1
 
             # Update conversation timestamp
             conversation.updated_at = datetime.utcnow()

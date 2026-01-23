@@ -382,10 +382,23 @@ Document content:
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail="Failed to create or retrieve mind map due to concurrent access"
                 )
-            existing.title = title
-            existing.data_json = data_json
-            db.commit()
-            db.refresh(existing)
+            try:
+                existing.title = title
+                existing.data_json = data_json
+                db.commit()
+                db.refresh(existing)
+            except Exception as update_error:
+                db.rollback()
+                existing_check = db.query(MindMap).filter(MindMap.conversation_id == conversation_id).first()
+                if existing_check is None:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail="Mind map no longer exists (deleted during update)"
+                    )
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Failed to update mind map: {str(update_error)}"
+                )
             mindmap = existing
     
     return MindMapResponse(

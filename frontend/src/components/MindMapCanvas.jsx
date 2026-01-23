@@ -12,10 +12,14 @@ const MindMapCanvas = ({
     setPan,
     conversationId,
     isFullscreen,
-    onExitFullscreen
+    onExitFullscreen,
+    initialZoom = 0.85,
+    initialPan = { x: 0, y: 0 }
 }) => {
     const containerRef = useRef(null);
     const panRef = useRef(pan);
+    const initialZoomRef = useRef(initialZoom);
+    const initialPanRef = useRef(initialPan);
     const [isPanning, setIsPanning] = useState(false);
     const [panStart, setPanStart] = useState({ x: 0, y: 0 });
     const [containerSize, setContainerSize] = useState({ width: 800, height: 600 });
@@ -338,10 +342,10 @@ const MindMapCanvas = ({
     };
 
     const handleReset = () => {
-        setZoom(0.85);
-        setPan({ x: 0, y: 0 });
-        safeLocalStorageSet(`mindmap_zoom_${conversationId}`, JSON.stringify(0.85));
-        safeLocalStorageSet(`mindmap_pan_${conversationId}`, JSON.stringify({ x: 0, y: 0 }));
+        setZoom(initialZoomRef.current);
+        setPan(initialPanRef.current);
+        safeLocalStorageSet(`mindmap_zoom_${conversationId}`, JSON.stringify(initialZoomRef.current));
+        safeLocalStorageSet(`mindmap_pan_${conversationId}`, JSON.stringify(initialPanRef.current));
     };
 
     // Node styles

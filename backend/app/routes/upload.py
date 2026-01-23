@@ -117,27 +117,45 @@ async def upload_files(
                     )
 
             vector_store = QdrantVectorStore(conversation.id)
-            chunk_count, qdrant_texts, qdrant_metadatas = vector_store.add_documents(all_text_data, source_to_doc_id)
-            logger.info("Added %d chunks to Qdrant for conversation %d", chunk_count, conversation.id)
+            try:
+                chunk_count, qdrant_texts, qdrant_metadatas = vector_store.add_documents(all_text_data, source_to_doc_id)
+                logger.info("Added %d chunks to Qdrant for conversation %d", chunk_count, conversation.id)
+            except Exception as qdrant_error:
+                logger.error("Failed to add documents to Qdrant: %s", qdrant_error)
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Failed to create vector embeddings: {str(qdrant_error)}"
+                )
 
             # Save chunks to SQLite for metadata backup
             embedding_processor = EmbeddingProcessor()
             embedding_processor.create_vector_store(all_text_data, precomputed_texts=qdrant_texts, precomputed_metadatas=qdrant_metadatas)
             
-            for idx, metadata in enumerate(embedding_processor.metadatas):
-                source = metadata.get("source", processed_files[0]) if processed_files else metadata.get("source", "Unknown")
-                # Use source_to_doc_id for consistent document_id lookup (same as Qdrant)
-                doc_id = source_to_doc_id.get(source)
-                chunk = DocumentChunk(
-                    conversation_id=conversation.id,
-                    document_id=doc_id,
-                    chunk_index=metadata.get("chunk_id", idx),
-                    content=embedding_processor.texts[idx],
-                    metadata_json=json.dumps(metadata)
-                )
-                db.add(chunk)
+            try:
+                for idx, metadata in enumerate(embedding_processor.metadatas):
+                    source = metadata.get("source", processed_files[0]) if processed_files else metadata.get("source", "Unknown")
+                    doc_id = source_to_doc_id.get(source)
+                    chunk = DocumentChunk(
+                        conversation_id=conversation.id,
+                        document_id=doc_id,
+                        chunk_index=metadata.get("chunk_id", idx),
+                        content=embedding_processor.texts[idx],
+                        metadata_json=json.dumps(metadata)
+                    )
+                    db.add(chunk)
 
-            db.commit()
+                db.commit()
+            except Exception as db_error:
+                db.rollback()
+                try:
+                    vector_store.delete_by_conversation()
+                    logger.info("Cleaned up Qdrant vectors after SQLite failure for conversation %d", conversation.id)
+                except Exception as cleanup_error:
+                    logger.error("Failed to cleanup Qdrant vectors: %s", cleanup_error)
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Failed to save document metadata: {str(db_error)}"
+                )
 
             return UploadResponse(
                 message="Files processed successfully",
