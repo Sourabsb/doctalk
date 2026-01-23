@@ -72,20 +72,23 @@ async def _get_conversation_lock(conversation_id: int) -> asyncio.Semaphore:
 async def acquire_llm_lock(conversation_id: int, timeout: float = 180.0) -> bool:
     """Acquire the LLM lock for a conversation (used for streaming)."""
     semaphore = await _get_conversation_lock(conversation_id)
-    acquired = False
     try:
         await asyncio.wait_for(semaphore.acquire(), timeout=timeout)
-        acquired = True
     except asyncio.TimeoutError:
         return False
-    # Don't catch CancelledError - let it propagate
+    # Don't catch CancelledError here - let it propagate (semaphore not yet acquired)
     
+    # Semaphore acquired - now we must release on any failure
+    marked_acquired = False
     try:
         async with _get_global_lock():
             _get_conversation_acquired()[conversation_id] = True
+            marked_acquired = True
         return True
-    except Exception:
-        if acquired:
+    except BaseException:
+        # Release semaphore only if we failed to mark as acquired
+        # (if marked, release_llm_lock will handle it)
+        if not marked_acquired:
             semaphore.release()
         raise
 
@@ -141,10 +144,20 @@ async def LLMRequestContext(conversation_id: int, timeout: float = 120.0):
         raise TimeoutError("Another LLM request is in progress. Please wait and try again.")
     finally:
         if acquired:
-            # Reset acquired flag before releasing
-            async with _get_global_lock():
-                _get_conversation_acquired()[conversation_id] = False
-            semaphore.release()
+            # Use asyncio.shield to prevent cancellation from interrupting cleanup
+            # This ensures semaphore.release() always runs
+            try:
+                await asyncio.shield(_reset_acquired_flag(conversation_id))
+            except asyncio.CancelledError:
+                pass  # Ignore cancellation during cleanup, flag reset attempted
+            finally:
+                semaphore.release()
+
+
+async def _reset_acquired_flag(conversation_id: int):
+    """Helper to reset acquired flag under global lock."""
+    async with _get_global_lock():
+        _get_conversation_acquired()[conversation_id] = False
 
 
 @asynccontextmanager

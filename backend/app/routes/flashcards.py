@@ -99,9 +99,14 @@ def parse_flashcards_response(response_text: str) -> List[dict]:
         pattern = r'\{\s*"front"\s*:\s*"((?:\\.|[^"])*)"\s*,\s*"back"\s*:\s*"((?:\\.|[^"])*)"\s*\}'
         matches = re.findall(pattern, response_text)
         for front, back in matches:
-            # Unescape backslash-escaped characters
-            front = front.replace('\\"', '"').replace('\\\\', '\\')
-            back = back.replace('\\"', '"').replace('\\\\', '\\')
+            # Use json.loads for robust unescaping of all escape sequences
+            try:
+                front = json.loads(f'"{front}"')
+                back = json.loads(f'"{back}"')
+            except json.JSONDecodeError:
+                # Fallback: unescape in correct order (backslashes first, then quotes)
+                front = front.replace('\\\\', '\\').replace('\\"', '"')
+                back = back.replace('\\\\', '\\').replace('\\"', '"')
             flashcards.append({"front": front, "back": back})
         
         if flashcards:
