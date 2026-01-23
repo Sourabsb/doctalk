@@ -123,6 +123,19 @@ async def add_documents_to_conversation(
                         available_doc_ids
                     )
 
+            # Check if all sources were filtered out
+            if not filtered_all_text_data:
+                logger.error(
+                    "All sources were unmapped and filtered out. No documents to add. "
+                    "Original sources: %s, Available documents: %s",
+                    list(all_text_data.keys()),
+                    available_doc_ids
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Could not match any uploaded files to document records. No documents were added."
+                )
+
             vector_store = QdrantVectorStore(conversation.id)
             chunk_count, qdrant_texts, qdrant_metadatas = vector_store.add_documents(filtered_all_text_data, source_to_doc_id)
 
