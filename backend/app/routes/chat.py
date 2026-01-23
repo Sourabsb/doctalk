@@ -499,6 +499,7 @@ async def chat_stream(
         })
 
     llm_client = get_llm_client(conversation.llm_mode, chat_request.cloud_model)
+    is_local = (conversation.llm_mode or "api") == "local"
     
     if not chat_request.regenerate:
         # Determine edit_group_id and version_index
@@ -588,7 +589,13 @@ async def chat_stream(
             yield f"data: {json.dumps({'type': 'error', 'message': 'Another request is in progress. Please wait and try again.'})}\n\n"
             return
         
+        local_lock_ctx = None
         try:
+            # For local mode, acquire global LocalModeLock to prevent concurrent Ollama requests
+            if is_local:
+                local_lock_ctx = LocalModeLock(timeout=180.0)
+                await local_lock_ctx.__aenter__()
+            
             # Check if streaming is supported (local mode)
             if hasattr(llm_client, 'generate_response_stream'):
                 try:
@@ -623,8 +630,17 @@ async def chat_stream(
                     error_occurred = True
                     error_message = str(e)
                     yield f"data: {json.dumps({'type': 'error', 'message': error_message})}\n\n"
+        except TimeoutError:
+            error_occurred = True
+            yield f"data: {json.dumps({'type': 'error', 'message': 'Ollama is busy with another request. Please wait.'})}\n\n"
         finally:
-            # Always release the lock
+            # Release local mode lock if acquired
+            if local_lock_ctx is not None:
+                try:
+                    await local_lock_ctx.__aexit__(None, None, None)
+                except Exception:
+                    pass
+            # Always release the conversation lock
             await release_llm_lock(conv_id)
 
         # Save assistant message after streaming completes (even on error to prevent orphaned user messages)

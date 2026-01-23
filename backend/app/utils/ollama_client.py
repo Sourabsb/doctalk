@@ -17,11 +17,29 @@ logger = logging.getLogger(__name__)
 
 # ============== LLM Queue / Lock System ==============
 
-_conversation_locks: Dict[int, asyncio.Semaphore] = {}
-_conversation_acquired: Dict[int, bool] = {}
 # Use WeakKeyDictionary to prevent memory leaks - entries removed when loop is garbage collected
+# Per-loop conversation locks: loop -> {conversation_id: Semaphore}
+_conversation_locks_storage: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
+# Per-loop acquired status: loop -> {conversation_id: bool}
+_conversation_acquired_storage: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
 _global_lock_storage: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
 _local_mode_semaphores: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
+
+
+def _get_conversation_locks() -> Dict[int, asyncio.Semaphore]:
+    """Get per-loop conversation locks dict."""
+    loop = asyncio.get_running_loop()
+    if loop not in _conversation_locks_storage:
+        _conversation_locks_storage[loop] = {}
+    return _conversation_locks_storage[loop]
+
+
+def _get_conversation_acquired() -> Dict[int, bool]:
+    """Get per-loop conversation acquired status dict."""
+    loop = asyncio.get_running_loop()
+    if loop not in _conversation_acquired_storage:
+        _conversation_acquired_storage[loop] = {}
+    return _conversation_acquired_storage[loop]
 
 
 def _get_global_lock() -> asyncio.Lock:
@@ -43,10 +61,12 @@ def _get_local_semaphore() -> asyncio.Semaphore:
 async def _get_conversation_lock(conversation_id: int) -> asyncio.Semaphore:
     """Get or create a semaphore for a specific conversation."""
     async with _get_global_lock():
-        if conversation_id not in _conversation_locks:
-            _conversation_locks[conversation_id] = asyncio.Semaphore(1)
-            _conversation_acquired[conversation_id] = False
-        return _conversation_locks[conversation_id]
+        locks = _get_conversation_locks()
+        acquired = _get_conversation_acquired()
+        if conversation_id not in locks:
+            locks[conversation_id] = asyncio.Semaphore(1)
+            acquired[conversation_id] = False
+        return locks[conversation_id]
 
 
 async def acquire_llm_lock(conversation_id: int, timeout: float = 180.0) -> bool:
@@ -61,7 +81,7 @@ async def acquire_llm_lock(conversation_id: int, timeout: float = 180.0) -> bool
     
     try:
         async with _get_global_lock():
-            _conversation_acquired[conversation_id] = True
+            _get_conversation_acquired()[conversation_id] = True
         return True
     except Exception:
         semaphore.release()
@@ -71,51 +91,68 @@ async def acquire_llm_lock(conversation_id: int, timeout: float = 180.0) -> bool
 async def release_llm_lock(conversation_id: int):
     """Release the LLM lock for a conversation."""
     async with _get_global_lock():
-        if conversation_id in _conversation_locks and _conversation_acquired.get(conversation_id, False):
+        locks = _get_conversation_locks()
+        acquired = _get_conversation_acquired()
+        if conversation_id in locks and acquired.get(conversation_id, False):
             try:
-                _conversation_locks[conversation_id].release()
-                _conversation_acquired[conversation_id] = False
+                locks[conversation_id].release()
+                acquired[conversation_id] = False
             except ValueError:
                 pass
 
 
-async def cleanup_conversation_locks(conversation_id: int):
-    """Remove lock entries for a finished conversation."""
+async def cleanup_conversation_locks(conversation_id: int) -> bool:
+    """Remove lock entries for a finished conversation.
+    
+    Returns True if cleanup was performed, False if lock is still held.
+    Only cleans up if the lock is not currently acquired to prevent
+    breaking release_llm_lock for in-progress operations.
+    """
     async with _get_global_lock():
-        _conversation_locks.pop(conversation_id, None)
-        _conversation_acquired.pop(conversation_id, None)
+        acquired = _get_conversation_acquired()
+        # Only clean up if lock is not currently held
+        if acquired.get(conversation_id, False):
+            # Lock is still held, skip cleanup to allow proper release later
+            logger.debug(
+                "Skipping cleanup for conversation %d: lock still held",
+                conversation_id
+            )
+            return False
+        _get_conversation_locks().pop(conversation_id, None)
+        acquired.pop(conversation_id, None)
+        return True
 
 
 @asynccontextmanager
 async def LLMRequestContext(conversation_id: int, timeout: float = 120.0):
     """Async context manager that serializes LLM requests per conversation."""
     semaphore = await _get_conversation_lock(conversation_id)
+    acquired = False
     try:
         await asyncio.wait_for(semaphore.acquire(), timeout=timeout)
+        acquired = True
         yield
     except asyncio.TimeoutError:
         raise TimeoutError("Another LLM request is in progress. Please wait and try again.")
     finally:
-        try:
+        if acquired:
             semaphore.release()
-        except ValueError:
-            pass
 
 
 @asynccontextmanager
 async def LocalModeLock(timeout: float = 180.0):
     """Global lock for local mode - ensures only one Ollama request at a time."""
     semaphore = _get_local_semaphore()
+    acquired = False
     try:
         await asyncio.wait_for(semaphore.acquire(), timeout=timeout)
+        acquired = True
         yield
     except asyncio.TimeoutError:
         raise TimeoutError("Ollama is busy processing another request. Please wait.")
     finally:
-        try:
+        if acquired:
             semaphore.release()
-        except ValueError:
-            pass
 
 
 # ============== Ollama Client ==============

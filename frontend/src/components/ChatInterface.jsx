@@ -3360,11 +3360,8 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                           {[0, 1, 2].map(i => (
                             <div 
                               key={i}
-                              className={`w-2 h-2 rounded-full ${isDark ? 'bg-emerald-400' : 'bg-emerald-500'}`}
-                              style={{ 
-                                animation: 'bounce 1.4s ease-in-out infinite',
-                                animationDelay: `${i * 0.16}s`
-                              }} 
+                              className={`w-2 h-2 rounded-full animate-bounce ${isDark ? 'bg-emerald-400' : 'bg-emerald-500'}`}
+                              style={{ animationDelay: `${i * 0.16}s` }} 
                             />
                           ))}
                         </div>

@@ -300,8 +300,8 @@ class QdrantVectorStore:
             print(f"[Qdrant] Search error: {e}")
             raise
     
-    def delete_by_document(self, document_id: int) -> int:
-        """Delete all vectors for a specific document."""
+    def delete_by_document(self, document_id: int) -> Optional[str]:
+        """Delete all vectors for a specific document. Returns operation_id if available."""
         result = self.client.delete(
             collection_name=self.collection_name,
             points_selector=models.FilterSelector(
@@ -319,11 +319,12 @@ class QdrantVectorStore:
                 )
             )
         )
-        print(f"[Qdrant] Deleted vectors for document {document_id}")
-        return 1  # Qdrant doesn't return count
+        operation_id = getattr(result, 'operation_id', None)
+        print(f"[Qdrant] Deleted vectors for document {document_id}, operation_id={operation_id}")
+        return operation_id
     
-    def delete_by_conversation(self) -> int:
-        """Delete all vectors for this conversation."""
+    def delete_by_conversation(self) -> Optional[str]:
+        """Delete all vectors for this conversation. Returns operation_id if available."""
         result = self.client.delete(
             collection_name=self.collection_name,
             points_selector=models.FilterSelector(
@@ -337,8 +338,9 @@ class QdrantVectorStore:
                 )
             )
         )
-        print(f"[Qdrant] Deleted all vectors for conversation {self.conversation_id}")
-        return 1
+        operation_id = getattr(result, 'operation_id', None)
+        print(f"[Qdrant] Deleted all vectors for conversation {self.conversation_id}, operation_id={operation_id}")
+        return operation_id
 
 
 class EmbeddingProcessor:

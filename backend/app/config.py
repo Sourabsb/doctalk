@@ -52,8 +52,8 @@ DATABASE_URL = os.getenv("DATABASE_URL", _default_database_url)
 # LLM Provider Configuration
 # =============================================================================
 DEFAULT_LLM_MODE = os.getenv(
-	"DEFAULT_LLM_MODE",
-	"api" if GEMINI_API_KEY else "local"
+    "DEFAULT_LLM_MODE",
+    "api" if GEMINI_API_KEY else "local"
 ).lower()
 GROQ_MODEL = os.getenv("GROQ_MODEL", "groq/compound")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.1:8b")

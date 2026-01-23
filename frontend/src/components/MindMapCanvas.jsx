@@ -196,11 +196,14 @@ const MindMapCanvas = ({
         const currentVisibleIds = new Set(nodes.map(n => n.id));
         const prevVisibleIds = prevVisibleNodesRef.current;
 
+        // Build lookup map for O(1) node access
+        const nodesById = new Map(nodes.map(n => [n.id, n]));
+
         const newNodes = {};
         let hasNew = false;
         currentVisibleIds.forEach(id => {
             if (!prevVisibleIds.has(id) && id !== 'root') {
-                const node = nodes.find(n => n.id === id);
+                const node = nodesById.get(id);
                 if (node) {
                     hasNew = true;
                     newNodes[id] = {
@@ -213,18 +216,27 @@ const MindMapCanvas = ({
             }
         });
 
+        let raf1 = null;
+        let raf2 = null;
+
         if (hasNew) {
             setNewlyVisibleNodes(newNodes);
             // Clear immediately to trigger transition
             // We use requestAnimationFrame to ensure the 'start' state renders first
-            requestAnimationFrame(() => {
-                requestAnimationFrame(() => {
+            raf1 = requestAnimationFrame(() => {
+                raf2 = requestAnimationFrame(() => {
                     setNewlyVisibleNodes({});
                 });
             });
         }
 
         prevVisibleNodesRef.current = currentVisibleIds;
+
+        // Cleanup function to cancel pending RAFs
+        return () => {
+            if (raf1 !== null) cancelAnimationFrame(raf1);
+            if (raf2 !== null) cancelAnimationFrame(raf2);
+        };
     }, [nodes]);
 
     // Pan handlers
@@ -240,46 +252,29 @@ const MindMapCanvas = ({
             let newX = e.clientX - panStart.x;
             let newY = e.clientY - panStart.y;
 
-            // Calculate boundaries based on node content
+            // Calculate content-aware boundaries based on node positions
             if (nodes.length > 0) {
-                const minX = Math.min(...nodes.map(n => n.x));
-                const maxX = Math.max(...nodes.map(n => n.x + n.width));
-                const minY = Math.min(...nodes.map(n => n.y));
-                const maxY = Math.max(...nodes.map(n => n.y + NODE_HEIGHT));
+                // Compute world content bounds from nodes
+                const worldMinX = Math.min(...nodes.map(n => n.x));
+                const worldMaxX = Math.max(...nodes.map(n => n.x + n.width));
+                const worldMinY = Math.min(...nodes.map(n => n.y));
+                const worldMaxY = Math.max(...nodes.map(n => n.y + NODE_HEIGHT));
 
-                const padding = 100;
-                // Constraints: don't let content go completely off screen
-                // Use reverse logic because pan moves the viewport
-                const xLimit = containerSize.width;
-                const yLimit = containerSize.height;
+                // Content dimensions in world space
+                const contentWidth = worldMaxX - worldMinX;
+                const contentHeight = worldMaxY - worldMinY;
 
-                // Adjust limits based on zoom level
-                // (Simplified constraint: keep center of content somewhat visible)
-                const contentCenterX = (minX + maxX) / 2;
-                const contentCenterY = (minY + maxY) / 2;
+                // Padding to keep some content visible at edges
+                const edgePadding = 100;
 
-                // Allow panning until center is near edge
-                if (newX > xLimit / 2 - contentCenterX * zoom + xLimit) newX = xLimit / 2 - contentCenterX * zoom + xLimit;
-                // This simple logic might be tricky with zoom.
-                // Let's use a standard boundary box approach:
-
-                // Content bounds in world coords: [minX, maxX, minY, maxY]
-                // Viewport wraps this.
-                // We want to limit 'pan' such that at least SOME part of the content is visible.
-
-                const limitPadding = 200 * zoom;
-
-                // Allow dragging freely but prevent completely losing the map
-                // Right limit: prevent dragging everything too far LEFT (negative pan)
-                // Left limit: prevent dragging everything too far RIGHT (positive pan)
-
-                // Just use a soft limit ~2000px if no better calculation,
-                // but let's try to be smart about container size.
-
-                const maxPanX = containerSize.width / 2 + 1000;
-                const minPanX = -containerSize.width / 2 - 1000;
-                const maxPanY = containerSize.height / 2 + 1000;
-                const minPanY = -containerSize.height / 2 - 1000;
+                // Pan limits: ensure at least edgePadding of content stays visible
+                // When pan is at maxPanX, the left edge of content is at right edge of viewport
+                const maxPanX = containerSize.width - (worldMinX * zoom) - edgePadding;
+                // When pan is at minPanX, the right edge of content is at left edge of viewport
+                const minPanX = -(worldMaxX * zoom) + edgePadding;
+                // Similarly for Y
+                const maxPanY = containerSize.height - (worldMinY * zoom) - edgePadding;
+                const minPanY = -(worldMaxY * zoom) + edgePadding;
 
                 newX = Math.max(minPanX, Math.min(maxPanX, newX));
                 newY = Math.max(minPanY, Math.min(maxPanY, newY));
@@ -536,6 +531,9 @@ const MindMapCanvas = ({
                                 {/* Node Label */}
                                 <div
                                     className="mindmap-node-label flex items-center justify-center rounded-xl cursor-pointer transition-shadow duration-200 hover:shadow-lg"
+                                    role="button"
+                                    tabIndex={0}
+                                    aria-label={`Query: ${node.label}`}
                                     style={{
                                         height: NODE_HEIGHT,
                                         padding: `0 ${NODE_PADDING_X}px`,
@@ -546,6 +544,12 @@ const MindMapCanvas = ({
                                         boxShadow: style.boxShadow
                                     }}
                                     onClick={() => onNodeClick(node.label)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter' || e.key === ' ') {
+                                            e.preventDefault();
+                                            onNodeClick(node.label);
+                                        }
+                                    }}
                                     title={`Click to query: "${node.label}"`}
                                 >
                                     <span className="text-sm font-medium" style={{ color: style.color }}>
