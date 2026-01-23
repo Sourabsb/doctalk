@@ -28,13 +28,19 @@ _embedding_model: Optional[SentenceTransformer] = None
 _qdrant_client: Optional[QdrantClient] = None
 _qdrant_initialized: bool = False
 _qdrant_init_lock = threading.Lock()
+_embedding_init_lock = threading.Lock()
+_qdrant_client_lock = threading.Lock()
 
 def get_embedding_model() -> SentenceTransformer:
-    """Get or initialize the sentence transformer model (singleton pattern)."""
+    """Get or initialize the sentence transformer model (singleton pattern, thread-safe)."""
     global _embedding_model
-    if _embedding_model is None:
+    if _embedding_model is not None:
+        return _embedding_model
+    
+    with _embedding_init_lock:
+        if _embedding_model is not None:
+            return _embedding_model
         print(f"[Embeddings] Loading model: {EMBEDDING_MODEL}")
-        # Only allow trust_remote_code for known safe models (use startswith for strict matching)
         trusted_prefixes = ["jinaai/jina-embeddings", "nomic-ai/nomic-embed"]
         trust_code = any(EMBEDDING_MODEL.startswith(prefix) for prefix in trusted_prefixes)
         _embedding_model = SentenceTransformer(EMBEDDING_MODEL, trust_remote_code=trust_code)
@@ -43,7 +49,7 @@ def get_embedding_model() -> SentenceTransformer:
 
 
 def get_qdrant_client() -> QdrantClient:
-    """Get Qdrant client instance (singleton pattern).
+    """Get Qdrant client instance (singleton pattern, thread-safe).
     
     Tries to connect to external Qdrant server first.
     Falls back to local disk-based storage if connection fails.
@@ -53,21 +59,23 @@ def get_qdrant_client() -> QdrantClient:
     if _qdrant_client is not None:
         return _qdrant_client
     
-    try:
-        client = QdrantClient(host=QDRANT_HOST, port=QDRANT_PORT, timeout=3)
-        # Test connection
-        client.get_collections()
-        print(f"[Qdrant] Connected to {QDRANT_HOST}:{QDRANT_PORT}")
-        _qdrant_client = client
-    except Exception as e:
-        print(f"[Qdrant] External server not available: {e}")
-        print("[Qdrant] Using local disk-based storage instead")
-        # Use local disk-based storage (persisted to ./qdrant_data)
-        from pathlib import Path
-        qdrant_path = Path(__file__).parent.parent.parent / "qdrant_data"
-        qdrant_path.mkdir(exist_ok=True)
-        _qdrant_client = QdrantClient(path=str(qdrant_path))
-        print(f"[Qdrant] Local storage initialized at: {qdrant_path}")
+    with _qdrant_client_lock:
+        if _qdrant_client is not None:
+            return _qdrant_client
+        
+        try:
+            client = QdrantClient(host=QDRANT_HOST, port=QDRANT_PORT, timeout=3)
+            client.get_collections()
+            print(f"[Qdrant] Connected to {QDRANT_HOST}:{QDRANT_PORT}")
+            _qdrant_client = client
+        except Exception as e:
+            print(f"[Qdrant] External server not available: {e}")
+            print("[Qdrant] Using local disk-based storage instead")
+            from pathlib import Path
+            qdrant_path = Path(__file__).parent.parent.parent / "qdrant_data"
+            qdrant_path.mkdir(exist_ok=True)
+            _qdrant_client = QdrantClient(path=str(qdrant_path))
+            print(f"[Qdrant] Local storage initialized at: {qdrant_path}")
     
     return _qdrant_client
 
@@ -176,20 +184,13 @@ class QdrantVectorStore:
         print(f"[Qdrant] Generating embeddings for {len(texts)} chunks...")
         embeddings = self.embed_texts(texts)
         
-        # Create points for Qdrant with deterministic IDs
         points = []
         for i, (text, embedding, metadata) in enumerate(zip(texts, embeddings, metadatas)):
-            # Generate deterministic ID from document_id + chunk_index, or hash of source + content
             doc_id = metadata.get("document_id")
             chunk_idx = metadata.get("chunk_index", i)
-            if doc_id is not None:
-                # Use document_id and chunk_index for deterministic ID
-                point_id = f"{self.conversation_id}_{doc_id}_{chunk_idx}"
-            else:
-                # Fallback: hash source + chunk content for deterministic ID
-                source = metadata.get("source", "unknown")
-                hash_input = f"{self.conversation_id}:{source}:{chunk_idx}:{text[:100]}"
-                point_id = hashlib.sha256(hash_input.encode()).hexdigest()[:32]
+            source = metadata.get("source", "unknown")
+            namespace_string = f"{self.conversation_id}:{source}:{doc_id}:{chunk_idx}:{text[:100]}"
+            point_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, namespace_string))
             points.append(PointStruct(
                 id=point_id,
                 vector=embedding,

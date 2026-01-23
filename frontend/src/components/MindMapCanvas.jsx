@@ -425,6 +425,7 @@ const MindMapCanvas = ({
                 </button>
                 <button
                     onClick={handleReset}
+                    aria-label="Reset view"
                     className={`w-8 h-8 flex items-center justify-center rounded-lg border transition-all ${isDark
                         ? 'border-white/10 bg-gray-900/90 hover:bg-gray-800 text-gray-300'
                         : 'border-gray-200 bg-white/95 hover:bg-gray-50 text-gray-600'

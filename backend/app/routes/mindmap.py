@@ -5,6 +5,7 @@ import logging
 import re
 from fastapi import APIRouter, HTTPException, Depends, status
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 
 from ..dependencies import get_db, get_current_user
 from ..models.db_models import Conversation, DocumentChunk, MindMap, Document
@@ -358,14 +359,23 @@ Document content:
         db.refresh(existing)
         mindmap = existing
     else:
-        mindmap = MindMap(
-            conversation_id=conversation_id,
-            title=title,
-            data_json=data_json
-        )
-        db.add(mindmap)
-        db.commit()
-        db.refresh(mindmap)
+        try:
+            mindmap = MindMap(
+                conversation_id=conversation_id,
+                title=title,
+                data_json=data_json
+            )
+            db.add(mindmap)
+            db.commit()
+            db.refresh(mindmap)
+        except IntegrityError:
+            db.rollback()
+            existing = db.query(MindMap).filter(MindMap.conversation_id == conversation_id).first()
+            existing.title = title
+            existing.data_json = data_json
+            db.commit()
+            db.refresh(existing)
+            mindmap = existing
     
     return MindMapResponse(
         id=mindmap.id,

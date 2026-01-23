@@ -5,7 +5,7 @@ import queue
 import threading
 import weakref
 from contextlib import asynccontextmanager
-from typing import List, Dict, Optional, AsyncGenerator
+from typing import List, Dict, Optional, AsyncGenerator, Any
 
 import ollama
 from ollama import Client
@@ -295,7 +295,7 @@ RESPONSE STYLE:
         context_docs: List[Dict],
         chat_history: List[Dict],
         hybrid_context: Optional[str] = None,
-    ) -> Dict[str, any]:
+    ) -> Dict[str, Any]:
         messages = self._build_messages(query, context_docs, chat_history, hybrid_context)
 
         def _call_ollama():

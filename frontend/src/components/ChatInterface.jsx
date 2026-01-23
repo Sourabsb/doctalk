@@ -1052,7 +1052,6 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
     } finally {
       flashcardGenRef.current = false;
       setFlashcardsGenerating(false);
-      setFlashcardsLoading(false);
     }
   };
 

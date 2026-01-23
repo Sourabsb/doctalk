@@ -145,8 +145,13 @@ async def add_documents_to_conversation(
             
             for idx, metadata in enumerate(embedding_processor.metadatas):
                 source = metadata.get("source", processed_files[0]) if processed_files else metadata.get("source", "Unknown")
-                # Use source_to_doc_id for consistent document_id lookup (same as Qdrant)
                 doc_id = source_to_doc_id.get(source)
+                if doc_id is None:
+                    logger.warning(
+                        "Skipping chunk with unmapped source '%s' for conversation %d",
+                        source, conversation.id
+                    )
+                    continue
                 chunk = DocumentChunk(
                     conversation_id=conversation.id,
                     document_id=doc_id,
