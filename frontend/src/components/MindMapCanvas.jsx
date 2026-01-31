@@ -50,7 +50,7 @@ const MindMapCanvas = ({
     const NODE_HEIGHT = 36;
     const NODE_PADDING_X = 14;
     const NODE_PADDING_Y = 18;
-    const LEVEL_SPACING = 180;
+    const LEVEL_SPACING = 70;
     const ARROW_SIZE = 24;
     const ARROW_GAP = 6;
 
@@ -60,7 +60,6 @@ const MindMapCanvas = ({
         const textWidth = text.length * avgCharWidth;
         return Math.max(90, textWidth + NODE_PADDING_X * 2);
     };
-
     // Calculate tree layout
     const calculateTreeLayout = useCallback(() => {
         if (!mindMapData || !mindMapData.nodes) return { nodes: [], connections: [], nodePositions: {} };
@@ -69,11 +68,17 @@ const MindMapCanvas = ({
         const allConnections = [];
         const nodePositions = {};
 
+        // Helper to check if node is expanded - collapsed by default (Option B)
+        // Only returns true if explicitly set to true
+        const isNodeExpanded = (nodeId) => {
+            return expandedNodes[nodeId] === true;
+        };
+
         // Calculate subtree height
         const calculateSubtreeHeight = (node, level = 1) => {
             if (!node) return NODE_HEIGHT + NODE_PADDING_Y;
 
-            const isExpanded = level === 0 || expandedNodes[node.id];
+            const isExpanded = level === 0 || isNodeExpanded(node.id);
             const children = node.children || (level === 0 ? mindMapData.nodes : []);
 
             if (!isExpanded || !children || children.length === 0) {
@@ -94,7 +99,7 @@ const MindMapCanvas = ({
         const rootY = containerSize.height / 2;
 
         const rootHasChildren = mindMapData.nodes && mindMapData.nodes.length > 0;
-        const rootIsExpanded = expandedNodes['root'] !== false;
+        const rootIsExpanded = isNodeExpanded('root');
         const rootLineOriginX = rootX + rootWidth + ARROW_GAP + (rootHasChildren ? ARROW_SIZE / 2 : 8);
 
         nodePositions['root'] = { x: rootX, y: rootY, lineOriginX: rootLineOriginX };
@@ -127,10 +132,10 @@ const MindMapCanvas = ({
                 const childHeight = childHeights[index];
                 const childY = currentY + childHeight / 2;
                 const childWidth = getNodeWidth(child.label);
-                const childX = parentLineOriginX + LEVEL_SPACING - 40;
+                const childX = parentLineOriginX + LEVEL_SPACING - 20;
 
                 const hasChildren = child.children && child.children.length > 0;
-                const isExpanded = expandedNodes[child.id];
+                const isExpanded = isNodeExpanded(child.id);
                 const arrowCenterX = childX + childWidth + ARROW_GAP + ARROW_SIZE / 2;
 
                 // Store parent position for animation origin

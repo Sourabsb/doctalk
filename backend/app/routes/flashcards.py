@@ -14,8 +14,13 @@ router = APIRouter(tags=["flashcards"])
 
 
 FLASHCARD_PROMPT = """Based on the following document content, generate 15 to 20 flashcards for studying.
-Each flashcard should have a "front" (a short question, max 50 characters) and a "back" (a concise answer, max 60 characters).
+Each flashcard should have a "front" (a short question, max 50 characters) and a "back" (a concise answer, max 25 words).
 Cover the ENTIRE document - include key concepts, definitions, important facts, and main ideas from all sections.
+
+IMPORTANT RULES:
+- Do NOT include any citations, references, or source numbers like [1], [2], etc. in the answers
+- Answers should be plain text only, no markdown formatting
+- Keep answers SHORT (under 25 words)
 
 IMPORTANT: Respond ONLY with valid JSON in the following format, nothing else:
 [
@@ -27,7 +32,7 @@ IMPORTANT: Respond ONLY with valid JSON in the following format, nothing else:
 Document Content:
 {context}
 
-Generate diverse, meaningful flashcards covering all major topics from the document. Keep answers SHORT (under 60 characters)."""
+Generate diverse, meaningful flashcards covering all major topics from the document."""
 
 
 def parse_flashcards_response(response_text: str) -> List[dict]:

@@ -83,175 +83,28 @@ const ResizablePanel = ({ children, width, minWidth, maxWidth, onResize, side, i
     </div>
   );
 };
-
-// Citation component for inline citations - NotebookLM style
-const InlineCitation = ({ number, source, chunkContent, isDark, onCitationClick, leftPanelCollapsed }) => {
-  const [showTooltip, setShowTooltip] = useState(false);
-  const buttonRef = useRef(null);
-  const [tooltipPosition, setTooltipPosition] = useState('center');
-  const [tooltipVertical, setTooltipVertical] = useState('above'); // 'above' or 'below'
-
+// Inline Citation Component
+const InlineCitation = ({ number, source, chunkContent, isDark, onCitationClick }) => {
   const handleClick = (e) => {
     e.stopPropagation();
     e.preventDefault();
-    setShowTooltip(false);
     onCitationClick(source, chunkContent);
   };
 
-  const handleMouseEnter = () => {
-    if (buttonRef.current) {
-      const rect = buttonRef.current.getBoundingClientRect();
-      const tooltipWidth = 280;
-      const tooltipHeight = 250;
-      const margin = 16;
-
-      // Vertical positioning
-      if (rect.top < tooltipHeight + 20) {
-        setTooltipVertical('below');
-      } else {
-        setTooltipVertical('above');
-      }
-
-      const spaceLeft = rect.left;
-      const spaceRight = window.innerWidth - rect.right;
-      const citationCenter = rect.left + rect.width / 2;
-      const viewportCenter = window.innerWidth / 2;
-
-      // Determine if citation is on left or right half of viewport
-      const isOnLeftSide = citationCenter < viewportCenter;
-
-      if (isOnLeftSide) {
-        // Citation on left - prefer showing tooltip to the right
-        if (spaceRight >= tooltipWidth + margin) {
-          setTooltipPosition('left'); // Anchor left, extends right
-        } else if (spaceLeft >= tooltipWidth + margin) {
-          setTooltipPosition('right'); // Anchor right, extends left
-        } else {
-          setTooltipPosition('center');
-        }
-      } else {
-        // Citation on right - prefer showing tooltip to the left
-        if (spaceLeft >= tooltipWidth + margin) {
-          setTooltipPosition('right'); // Anchor right, extends left
-        } else if (spaceRight >= tooltipWidth + margin) {
-          setTooltipPosition('left'); // Anchor left, extends right
-        } else {
-          setTooltipPosition('center');
-        }
-      }
-    }
-    setShowTooltip(true);
-  };
-
-  const getTooltipStyle = () => {
-    const horizontalStyle = tooltipPosition === 'left'
-      ? { left: '0', right: 'auto', transform: 'translateX(0)' }
-      : tooltipPosition === 'right'
-        ? { right: '0', left: 'auto', transform: 'translateX(0)' }
-        : { left: '50%', transform: 'translateX(-50%)' };
-
-    const verticalStyle = tooltipVertical === 'below'
-      ? { top: 'calc(100% + 8px)', bottom: 'auto' }
-      : { bottom: 'calc(100% + 8px)', top: 'auto' };
-
-    return { ...horizontalStyle, ...verticalStyle };
-  };
-
-  const getArrowStyle = () => {
-    const horizontalStyle = tooltipPosition === 'left'
-      ? { left: '12px', right: 'auto', transform: 'translateX(0)' }
-      : tooltipPosition === 'right'
-        ? { right: '12px', left: 'auto', transform: 'translateX(0)' }
-        : { left: '50%', transform: 'translateX(-50%)' };
-
-    // Arrow positioning based on tooltip vertical position
-    const verticalStyle = tooltipVertical === 'below'
-      ? { top: '-6px', bottom: 'auto' }
-      : { bottom: '-6px', top: 'auto' };
-
-    return { ...horizontalStyle, ...verticalStyle };
-  };
-
-  // Arrow border classes change based on vertical position
-  const getArrowClasses = () => {
-    if (tooltipVertical === 'below') {
-      // Arrow points up when tooltip is below
-      return isDark
-        ? 'bg-[#2a2a2a] border-l border-t border-white/10'
-        : 'bg-white border-l border-t border-gray-200';
-    }
-    // Arrow points down when tooltip is above
-    return isDark
-      ? 'bg-[#2a2a2a] border-r border-b border-white/10'
-      : 'bg-white border-r border-b border-gray-200';
-  };
-
   return (
-    <span
-      className="relative inline z-[10000]"
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={() => setShowTooltip(false)}
+    <button
+      onClick={handleClick}
+      className={`inline-flex items-center justify-center min-w-[16px] h-[16px] mx-0.5 text-[10px] font-bold rounded cursor-pointer
+        ${isDark ? 'bg-amber-500/30 text-amber-300 hover:bg-amber-500/50' : 'bg-amber-100 text-amber-700 hover:bg-amber-200'}
+        transition-colors`}
+      style={{
+        verticalAlign: 'middle',
+        lineHeight: 1,
+        padding: '0 4px',
+      }}
     >
-      <button
-        ref={buttonRef}
-        onClick={handleClick}
-        className={`inline-flex items-center justify-center min-w-[16px] h-[16px] mx-0.5 text-[10px] font-bold rounded cursor-pointer relative z-[10001]
-          ${isDark ? 'bg-amber-500/30 text-amber-300 hover:bg-amber-500/50' : 'bg-amber-100 text-amber-700 hover:bg-amber-200'}
-          transition-colors`}
-        style={{
-          verticalAlign: 'middle',
-          lineHeight: 1,
-          padding: '0 4px',
-          pointerEvents: 'auto'
-        }}
-      >
-        {number}
-      </button>
-      {showTooltip && (
-        <div
-          onMouseEnter={() => setShowTooltip(true)}
-          onMouseLeave={() => setShowTooltip(false)}
-          className={`absolute z-[999999] p-3 rounded-lg text-xs shadow-2xl pointer-events-auto
-            ${isDark ? 'bg-[#2a2a2a] text-gray-200 border border-white/10' : 'bg-white text-gray-800 border border-gray-200'}`}
-          style={{
-            pointerEvents: 'auto',
-            width: '265px',
-            ...getTooltipStyle()
-          }}
-        >
-          {/* Arrow - direction changes based on tooltip position */}
-          <div
-            className={`absolute w-3 h-3 rotate-45 ${getArrowClasses()}`}
-            style={getArrowStyle()}
-          />
-          <div className={`flex items-center gap-2 mb-2 pb-2 border-b ${isDark ? 'border-white/10' : 'border-gray-100'}`}>
-            <FileText size={12} className={isDark ? 'text-amber-400' : 'text-amber-600'} />
-            <span className={`font-medium text-[11px] truncate ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>
-              {source}
-            </span>
-          </div>
-          {chunkContent ? (
-            <div
-              className={`leading-relaxed text-[11px] max-h-48 overflow-y-auto custom-scrollbar ${isDark ? 'text-gray-300' : 'text-gray-600'}`}
-              style={{ wordBreak: 'break-word' }}
-            >
-              {chunkContent}
-            </div>
-          ) : (
-            <div className={`leading-relaxed text-[11px] ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-              No preview available.
-            </div>
-          )}
-          <button
-            onClick={handleClick}
-            className={`flex items-center gap-1 mt-2 pt-2 border-t text-[10px] w-full cursor-pointer hover:underline ${isDark ? 'border-white/10 text-amber-400 hover:text-amber-300' : 'border-gray-100 text-amber-600 hover:text-amber-700'}`}
-          >
-            <Search size={10} />
-            <span>Click to view in document</span>
-          </button>
-        </div>
-      )}
-    </span>
+      {number}
+    </button>
   );
 };
 
@@ -440,7 +293,7 @@ const MarkdownRenderer = ({ content, isDark, sources = [], sourceChunks = [], on
 const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false }) => {
   // Window width state for reactive sizing
   const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
-  
+
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth);
     window.addEventListener('resize', handleResize);
@@ -615,7 +468,7 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
     if (conversationId) {
       const currentId = conversationId;
       let cancelled = false;
-      
+
       flashcardsFetchedRef.current = false;
       mindMapFetchedRef.current = false;
       setFlashcards([]);
@@ -623,7 +476,7 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
       setShowFlashcards(false);
       setShowMindMap(false);
       loadConversation();
-      
+
       (async () => {
         try {
           const flashcardsData = await getFlashcards(currentId);
@@ -635,7 +488,7 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
         } catch (e) {
           if (process.env.NODE_ENV !== 'production') console.error('Failed to fetch flashcards:', e);
         }
-        
+
         try {
           const mindMapResult = await getMindMap(currentId);
           if (cancelled || currentId !== latestConversationIdRef.current) return;
@@ -643,20 +496,16 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
             setMindMapData(mindMapResult);
             mindMapFetchedRef.current = true;
             try {
+              // Option B: collapsed by default - just load saved state, empty = all collapsed
               const savedExpanded = localStorage.getItem(`mindmap_expanded_${currentId}`);
-              if (savedExpanded) setExpandedNodes(JSON.parse(savedExpanded));
-              else {
-                const initialExpanded = {};
-                mindMapResult.nodes?.forEach(node => { initialExpanded[node.id] = true; });
-                setExpandedNodes(initialExpanded);
-              }
+              setExpandedNodes(savedExpanded ? JSON.parse(savedExpanded) : {});
             } catch { setExpandedNodes({}); }
           }
         } catch (e) {
           if (process.env.NODE_ENV !== 'production') console.error('Failed to fetch mindmap:', e);
         }
       })();
-      
+
       return () => { cancelled = true; };
     } else {
       setMessages([]);
@@ -1021,7 +870,7 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
   // Fetch existing flashcards (lazy load on first click)
   const fetchExistingFlashcards = async () => {
     if (!conversationId || flashcardsFetchedRef.current) return false;
-    
+
     try {
       const flashcardsData = await getFlashcards(conversationId);
       if (flashcardsData.flashcards && flashcardsData.flashcards.length > 0) {
@@ -1115,20 +964,16 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
   // Fetch existing mind map (lazy load on first click)
   const fetchExistingMindMap = async () => {
     if (!conversationId || mindMapFetchedRef.current) return;
-    
+
     try {
       const mindMapResult = await getMindMap(conversationId);
       if (mindMapResult) {
         setMindMapData(mindMapResult);
         mindMapFetchedRef.current = true;
         try {
+          // Option B: collapsed by default - just load saved state, empty = all collapsed
           const savedExpanded = localStorage.getItem(`mindmap_expanded_${conversationId}`);
-          if (savedExpanded) setExpandedNodes(JSON.parse(savedExpanded));
-          else {
-            const initialExpanded = {};
-            mindMapResult.nodes?.forEach(node => { initialExpanded[node.id] = true; });
-            setExpandedNodes(initialExpanded);
-          }
+          setExpandedNodes(savedExpanded ? JSON.parse(savedExpanded) : {});
         } catch { setExpandedNodes({}); }
         try {
           const savedZoom = localStorage.getItem(`mindmap_zoom_${conversationId}`);
@@ -1149,7 +994,7 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
 
   const handleGenerateMindMap = async () => {
     if (!conversationId) return;
-    
+
     // If already generating, just show the loading state
     if (mindMapGenRef.current) {
       setShowMindMap(true);
@@ -1171,10 +1016,9 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
       const result = await generateMindMap(conversationId, selectedCloudModel);
       if (result) {
         setMindMapData(result);
-        const initialExpanded = {};
-        result.nodes?.forEach(node => { initialExpanded[node.id] = true; });
-        setExpandedNodes(initialExpanded);
-        localStorage.setItem(`mindmap_expanded_${conversationId}`, JSON.stringify(initialExpanded));
+        // Option B: start collapsed by default (empty state)
+        setExpandedNodes({});
+        localStorage.removeItem(`mindmap_expanded_${conversationId}`);
       }
     } catch (error) {
       console.error('Error generating mind map:', error);
@@ -1190,7 +1034,10 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
 
   const handleMindMapNodeToggle = (nodeId) => {
     setExpandedNodes(prev => {
-      const updated = { ...prev, [nodeId]: !prev[nodeId] };
+      // Option B: collapsed by default
+      // undefined or false = collapsed, true = expanded
+      const currentlyExpanded = prev[nodeId] === true;
+      const updated = { ...prev, [nodeId]: !currentlyExpanded };
       localStorage.setItem(`mindmap_expanded_${conversationId}`, JSON.stringify(updated));
       return updated;
     });
@@ -1220,20 +1067,20 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
         setShowFlashcards(true);
         return;
       }
-      
+
       // If we have cards, just show them
       if (flashcards.length > 0) {
         setShowFlashcards(true);
         return;
       }
-      
+
       // First time click - try to fetch existing, if none then generate
       if (!flashcardsFetchedRef.current) {
         setFlashcardsLoading(true);
         setShowFlashcards(true);
         const hasCards = await fetchExistingFlashcards();
         setFlashcardsLoading(false);
-        
+
         // If no cards found after fetching, generate new ones
         if (!hasCards) {
           handleGenerateFlashcards();
@@ -1248,20 +1095,20 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
         setShowMindMap(true);
         return;
       }
-      
+
       // If mind map exists, show it
       if (mindMapData) {
         setShowMindMap(true);
         return;
       }
-      
+
       // First time click - try to fetch existing
       if (!mindMapFetchedRef.current) {
         setMindMapLoading(true);
         setShowMindMap(true);
         const exists = await fetchExistingMindMap();
         setMindMapLoading(false);
-        
+
         // If no existing mind map, generate new one
         if (!exists) {
           handleGenerateMindMap();
@@ -2195,18 +2042,6 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
             </button>
           </Tooltip>
 
-          <Tooltip text="Deep research" side="right">
-            <button className={`p-2 rounded-lg transition-all ${theme.hoverBg} mb-1`}>
-              <Sparkles size={18} strokeWidth={2} className="text-amber-500" />
-            </button>
-          </Tooltip>
-
-          <Tooltip text="Web search" side="right">
-            <button className={`p-2 rounded-lg transition-all ${theme.hoverBg} mb-1`}>
-              <Globe size={18} strokeWidth={2} className="text-blue-500" />
-            </button>
-          </Tooltip>
-
           {documents.length > 0 && (
             <>
               <div className={`w-6 h-px ${isDark ? 'bg-gray-700' : 'bg-gray-200'} my-2`} />
@@ -2373,18 +2208,6 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                 >
                   <Upload size={16} strokeWidth={2} />
                   <span>Add sources</span>
-                </button>
-              </div>
-
-              {/* Quick Actions */}
-              <div className="px-3 space-y-1">
-                <button className={`w-full flex items-center gap-2.5 py-2 px-3 rounded-lg ${theme.hoverBg} ${theme.textSecondary} transition-all text-sm`}>
-                  <Sparkles size={16} className="text-amber-500" strokeWidth={2} />
-                  <span>Deep research</span>
-                </button>
-                <button className={`w-full flex items-center gap-2.5 py-2 px-3 rounded-lg ${theme.hoverBg} ${theme.textSecondary} transition-all text-sm`}>
-                  <Globe size={16} className="text-blue-500" strokeWidth={2} />
-                  <span>Web search</span>
                 </button>
               </div>
 
@@ -2963,12 +2786,6 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                 <StickyNote size={18} strokeWidth={2} />
               </button>
             </Tooltip>
-
-            <Tooltip text="Chat" side="left">
-              <button className={`p-2 rounded-xl transition-all ${theme.hoverBg} ${theme.textSecondary}`}>
-                <MessageSquare size={18} strokeWidth={2} />
-              </button>
-            </Tooltip>
           </div>
         )
       }
@@ -3356,7 +3173,7 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                         <div className={`p-4 rounded-2xl ${isDark ? 'bg-emerald-500/10' : 'bg-emerald-50'}`}>
                           <Loader2 size={32} className={`animate-spin ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} strokeWidth={2} />
                         </div>
-                        
+
                         {/* Loading text */}
                         <div className="text-center">
                           <p className={`text-base font-semibold ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
@@ -3366,14 +3183,14 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                             Analyzing document structure...
                           </p>
                         </div>
-                        
+
                         {/* Animated dots */}
                         <div className="flex gap-1.5">
                           {[0, 1, 2].map(i => (
-                            <div 
+                            <div
                               key={i}
                               className={`w-2 h-2 rounded-full animate-bounce ${isDark ? 'bg-emerald-400' : 'bg-emerald-500'}`}
-                              style={{ animationDelay: `${i * 0.16}s` }} 
+                              style={{ animationDelay: `${i * 0.16}s` }}
                             />
                           ))}
                         </div>
@@ -3417,7 +3234,7 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                         <div className={`p-4 rounded-2xl ${isDark ? 'bg-amber-500/10' : 'bg-amber-50'}`}>
                           <Loader2 size={32} className={`animate-spin ${isDark ? 'text-amber-400' : 'text-amber-600'}`} strokeWidth={2} />
                         </div>
-                        
+
                         {/* Loading text */}
                         <div className="text-center">
                           <p className={`text-base font-semibold ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>
@@ -3427,17 +3244,17 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                             Creating study cards...
                           </p>
                         </div>
-                        
+
                         {/* Animated dots */}
                         <div className="flex gap-1.5">
                           {[0, 1, 2].map(i => (
-                            <div 
+                            <div
                               key={i}
                               className={`w-2 h-2 rounded-full ${isDark ? 'bg-amber-400' : 'bg-amber-500'}`}
-                              style={{ 
+                              style={{
                                 animation: 'bounce 1.4s ease-in-out infinite',
                                 animationDelay: `${i * 0.16}s`
-                              }} 
+                              }}
                             />
                           ))}
                         </div>
@@ -3582,41 +3399,41 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                         const isFlashcardGenerating = tool.label === 'Flashcards' && flashcardsGenerating;
                         const isMindMapGenerating = tool.label === 'Mind Map' && mindMapLoading;
                         const isGenerating = isFlashcardGenerating || isMindMapGenerating;
-                        
+
                         return (
-                        <button
-                          key={index}
-                          onClick={() => handleStudioToolClick(tool.label)}
-                          className={`flex flex-col items-center justify-center gap-2 p-3 rounded-xl border relative overflow-hidden
+                          <button
+                            key={index}
+                            onClick={() => handleStudioToolClick(tool.label)}
+                            className={`flex flex-col items-center justify-center gap-2 p-3 rounded-xl border relative overflow-hidden
                             ${theme.cardBg} ${theme.cardBorder} ${theme.hoverBg} transition-all hover:scale-[1.02]
                             ${tool.label === 'Flashcards' && flashcards.length > 0 && !isFlashcardGenerating ? (isDark ? 'ring-1 ring-pink-500/50' : 'ring-1 ring-pink-400/50') : ''}
                             ${tool.label === 'Mind Map' && mindMapData && !isMindMapGenerating ? (isDark ? 'ring-1 ring-emerald-500/50' : 'ring-1 ring-emerald-400/50') : ''}
                             ${isGenerating ? (isDark ? 'ring-1 ring-amber-500/40' : 'ring-1 ring-amber-400/40') : ''}`}
-                        >
-                          {/* Generating Animation Overlay - Simple version */}
-                          {isGenerating && (
-                            <div className="absolute inset-0 flex flex-col items-center justify-center">
-                              <Loader2 size={20} className={`animate-spin ${isDark ? 'text-amber-400' : 'text-amber-600'}`} strokeWidth={2.5} />
-                              <span className={`text-[10px] mt-1.5 font-medium ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>
-                                Generating...
-                              </span>
-                            </div>
-                          )}
-                          <tool.icon size={20} className={`${tool.color} ${isGenerating ? 'opacity-0' : ''}`} strokeWidth={1.5} />
-                          <span className={`text-xs text-center ${theme.textSecondary} ${isGenerating ? 'opacity-0' : ''}`}>
-                            {tool.label}
-                            {tool.label === 'Flashcards' && flashcards.length > 0 && !isFlashcardGenerating && (
-                              <span className={`ml-1 px-1 rounded text-[10px] ${isDark ? 'bg-pink-500/20 text-pink-400' : 'bg-pink-100 text-pink-600'}`}>
-                                {flashcards.length}
-                              </span>
+                          >
+                            {/* Generating Animation Overlay - Simple version */}
+                            {isGenerating && (
+                              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                <Loader2 size={20} className={`animate-spin ${isDark ? 'text-amber-400' : 'text-amber-600'}`} strokeWidth={2.5} />
+                                <span className={`text-[10px] mt-1.5 font-medium ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>
+                                  Generating...
+                                </span>
+                              </div>
                             )}
-                            {tool.label === 'Mind Map' && mindMapData && !isMindMapGenerating && (
-                              <span className={`ml-1 px-1 rounded text-[10px] ${isDark ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-100 text-emerald-600'}`}>
-                                ✓
-                              </span>
-                            )}
-                          </span>
-                        </button>
+                            <tool.icon size={20} className={`${tool.color} ${isGenerating ? 'opacity-0' : ''}`} strokeWidth={1.5} />
+                            <span className={`text-xs text-center ${theme.textSecondary} ${isGenerating ? 'opacity-0' : ''}`}>
+                              {tool.label}
+                              {tool.label === 'Flashcards' && flashcards.length > 0 && !isFlashcardGenerating && (
+                                <span className={`ml-1 px-1 rounded text-[10px] ${isDark ? 'bg-pink-500/20 text-pink-400' : 'bg-pink-100 text-pink-600'}`}>
+                                  {flashcards.length}
+                                </span>
+                              )}
+                              {tool.label === 'Mind Map' && mindMapData && !isMindMapGenerating && (
+                                <span className={`ml-1 px-1 rounded text-[10px] ${isDark ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-100 text-emerald-600'}`}>
+                                  ✓
+                                </span>
+                              )}
+                            </span>
+                          </button>
                         );
                       })}
                     </div>

@@ -55,7 +55,7 @@ DEFAULT_LLM_MODE = os.getenv(
     "DEFAULT_LLM_MODE",
     "api" if GEMINI_API_KEY else "local"
 ).lower()
-GROQ_MODEL = os.getenv("GROQ_MODEL", "groq/compound")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")
 OLLAMA_CONTEXT_LENGTH = int(os.getenv("OLLAMA_CONTEXT_LENGTH", "16384"))

@@ -41,7 +41,7 @@ const UploadModal = ({ isOpen, onClose, onUploadSuccess, isDark }) => {
 
   const handleUpload = async () => {
     if (files.length === 0) return
-    
+
     setIsProcessing(true)
     setError(null)
     try {
@@ -101,13 +101,12 @@ const UploadModal = ({ isOpen, onClose, onUploadSuccess, isDark }) => {
         <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
           {/* Drop Zone */}
           <div
-            className={`border-2 border-dashed rounded-xl p-8 text-center transition-all ${
-              dragActive 
-                ? 'border-amber-400 bg-amber-500/10' 
-                : isDark 
+            className={`border-2 border-dashed rounded-xl p-8 text-center transition-all ${dragActive
+                ? 'border-amber-400 bg-amber-500/10'
+                : isDark
                   ? 'border-white/20 hover:border-amber-400/50 bg-white/5'
                   : 'border-amber-200 hover:border-amber-400 bg-amber-50/50'
-            }`}
+              }`}
             onDragEnter={handleDrag}
             onDragLeave={handleDrag}
             onDragOver={handleDrag}
@@ -118,10 +117,10 @@ const UploadModal = ({ isOpen, onClose, onUploadSuccess, isDark }) => {
               type="file"
               multiple
               onChange={handleFileSelect}
-              accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png"
+              accept=".pdf,.doc,.docx,.txt"
               className="hidden"
             />
-            
+
             <div className="space-y-4">
               <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto ${isDark ? 'bg-amber-500/20' : 'bg-amber-100'}`}>
                 <svg className="w-8 h-8 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -140,7 +139,7 @@ const UploadModal = ({ isOpen, onClose, onUploadSuccess, isDark }) => {
                   Upload files
                 </button>
               </div>
-              <p className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>Supported: PDF, DOCX, TXT, Images</p>
+              <p className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>Supported: PDF, DOC, DOCX, TXT</p>
             </div>
           </div>
 
@@ -149,15 +148,14 @@ const UploadModal = ({ isOpen, onClose, onUploadSuccess, isDark }) => {
             <button
               type="button"
               onClick={() => setLlmMode('local')}
-              className={`flex items-center gap-3 p-4 rounded-xl border transition-all text-left ${
-                llmMode === 'local'
+              className={`flex items-center gap-3 p-4 rounded-xl border transition-all text-left ${llmMode === 'local'
                   ? isDark
                     ? 'border-amber-400/70 bg-amber-500/10'
                     : 'border-amber-400 bg-amber-50'
                   : isDark
                     ? 'border-white/10 bg-white/5 hover:border-amber-300/40'
                     : 'border-amber-100 bg-white hover:border-amber-300'
-              }`}
+                }`}
             >
               <div className={`w-10 h-10 rounded-lg flex-shrink-0 flex items-center justify-center ${isDark ? 'bg-amber-500/20' : 'bg-amber-100'}`}>
                 <svg className={`w-5 h-5 ${isDark ? 'text-amber-300' : 'text-amber-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -176,15 +174,14 @@ const UploadModal = ({ isOpen, onClose, onUploadSuccess, isDark }) => {
             <button
               type="button"
               onClick={() => setLlmMode('api')}
-              className={`flex items-center gap-3 p-4 rounded-xl border transition-all text-left ${
-                llmMode === 'api'
+              className={`flex items-center gap-3 p-4 rounded-xl border transition-all text-left ${llmMode === 'api'
                   ? isDark
                     ? 'border-amber-400/70 bg-amber-500/10'
                     : 'border-amber-400 bg-amber-50'
                   : isDark
                     ? 'border-white/10 bg-white/5 hover:border-amber-300/40'
                     : 'border-amber-100 bg-white hover:border-amber-300'
-              }`}
+                }`}
             >
               <div className={`w-10 h-10 rounded-lg flex-shrink-0 flex items-center justify-center ${isDark ? 'bg-blue-500/20' : 'bg-blue-100'}`}>
                 <svg className={`w-5 h-5 ${isDark ? 'text-blue-300' : 'text-blue-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -211,14 +208,13 @@ const UploadModal = ({ isOpen, onClose, onUploadSuccess, isDark }) => {
                   value={conversationTitle}
                   onChange={(e) => setConversationTitle(e.target.value)}
                   placeholder="e.g. Project Research Notes"
-                  className={`w-full px-4 py-2.5 border rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500/50 ${
-                    isDark 
-                      ? 'bg-white/5 border-white/10 text-white placeholder-gray-500' 
+                  className={`w-full px-4 py-2.5 border rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500/50 ${isDark
+                      ? 'bg-white/5 border-white/10 text-white placeholder-gray-500'
                       : 'bg-white border-amber-200 text-gray-800 placeholder-gray-400'
-                  }`}
+                    }`}
                 />
               </div>
-              
+
               <div className="space-y-2 max-h-40 overflow-y-auto">
                 {files.map((file, index) => (
                   <div key={index} className={`flex items-center justify-between p-3 rounded-lg ${isDark ? 'bg-white/5' : 'bg-amber-50'}`}>

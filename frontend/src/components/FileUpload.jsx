@@ -39,7 +39,7 @@ const FileUpload = ({ onUploadSuccess, isProcessing, setIsProcessing }) => {
   const handleUpload = async () => {
     if (files.length === 0) return
     const llmMode = mode === 'offline' ? 'local' : 'api'
-    
+
     setIsProcessing(true)
     setError(null)
     try {
@@ -77,7 +77,7 @@ const FileUpload = ({ onUploadSuccess, isProcessing, setIsProcessing }) => {
             <div className="flex items-center space-x-4 mb-6">
               <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
                 <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                  <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
               </div>
               <div>
@@ -85,16 +85,15 @@ const FileUpload = ({ onUploadSuccess, isProcessing, setIsProcessing }) => {
                 <p className="text-white/80 text-sm">Upload multiple files to analyze and compare them together</p>
               </div>
             </div>
-            
+
             {/* Mode Selector */}
             <div className="flex gap-3 mb-6">
               <button
                 onClick={() => setMode('online')}
-                className={`flex-1 px-4 py-3 rounded-lg transition-all duration-200 ${
-                  mode === 'online'
+                className={`flex-1 px-4 py-3 rounded-lg transition-all duration-200 ${mode === 'online'
                     ? 'bg-white text-amber-600 shadow-lg'
                     : 'bg-white/10 text-white hover:bg-white/20'
-                }`}
+                  }`}
               >
                 <div className="flex items-center justify-center gap-2">
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -106,14 +105,13 @@ const FileUpload = ({ onUploadSuccess, isProcessing, setIsProcessing }) => {
                   </div>
                 </div>
               </button>
-              
+
               <button
                 onClick={() => setMode('offline')}
-                className={`flex-1 px-4 py-3 rounded-lg transition-all duration-200 ${
-                  mode === 'offline'
+                className={`flex-1 px-4 py-3 rounded-lg transition-all duration-200 ${mode === 'offline'
                     ? 'bg-white text-amber-600 shadow-lg'
                     : 'bg-white/10 text-white hover:bg-white/20'
-                }`}
+                  }`}
               >
                 <div className="flex items-center justify-center gap-2">
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -126,14 +124,13 @@ const FileUpload = ({ onUploadSuccess, isProcessing, setIsProcessing }) => {
                 </div>
               </button>
             </div>
-            
+
             {/* Upload Area */}
             <div
-              className={`border-2 border-dashed border-white/30 rounded-xl p-6 text-center transition-all duration-300 flex-1 ${
-                dragActive 
-                  ? 'border-white/60 bg-white/10' 
+              className={`border-2 border-dashed border-white/30 rounded-xl p-6 text-center transition-all duration-300 flex-1 ${dragActive
+                  ? 'border-white/60 bg-white/10'
                   : 'hover:border-white/50 hover:bg-white/5'
-              }`}
+                }`}
               onDragEnter={handleDrag}
               onDragLeave={handleDrag}
               onDragOver={handleDrag}
@@ -144,10 +141,10 @@ const FileUpload = ({ onUploadSuccess, isProcessing, setIsProcessing }) => {
                 type="file"
                 multiple
                 onChange={handleFileSelect}
-                accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png"
+                accept=".pdf,.doc,.docx,.txt"
                 className="hidden"
               />
-              
+
               <div className="space-y-3">
                 <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center mx-auto">
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -167,9 +164,9 @@ const FileUpload = ({ onUploadSuccess, isProcessing, setIsProcessing }) => {
                   </p>
                   <div className="flex justify-center space-x-4 text-xs text-white/60">
                     <span>PDF</span>
+                    <span>DOC</span>
                     <span>DOCX</span>
                     <span>TXT</span>
-                    <span>Images</span>
                   </div>
                 </div>
               </div>
@@ -188,45 +185,45 @@ const FileUpload = ({ onUploadSuccess, isProcessing, setIsProcessing }) => {
                     className="w-full px-4 py-2 rounded-lg bg-white/15 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-white/60"
                   />
                 </div>
-              <div className="space-y-3">
-                {error && (
-                  <div className="p-3 bg-red-500/20 border border-red-500/30 rounded-lg text-red-200 text-sm">
-                    {error}
-                  </div>
-                )}
-                {files.map((file, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 bg-white/10 rounded-lg">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-8 h-8 bg-white/20 rounded flex items-center justify-center">
-                        <span className="text-xs font-medium">
-                          {file.name.split('.').pop()?.toUpperCase()}
-                        </span>
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium">{file.name}</p>
-                        <p className="text-xs text-white/60">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
-                      </div>
+                <div className="space-y-3">
+                  {error && (
+                    <div className="p-3 bg-red-500/20 border border-red-500/30 rounded-lg text-red-200 text-sm">
+                      {error}
                     </div>
-                    <button
-                      onClick={() => removeFile(index)}
-                      className="text-white/60 hover:text-white p-1"
-                    >
-                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                      </svg>
-                    </button>
-                  </div>
-                ))}
-                
-                <button
-                  onClick={handleUpload}
-                  disabled={isProcessing}
-                  className="w-full py-3 bg-white text-amber-600 rounded-lg font-semibold hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  {isProcessing ? 'Processing...' : mode === 'offline' ? 'Start with Local Model' : 'Start with Cloud API'}
-                </button>
+                  )}
+                  {files.map((file, index) => (
+                    <div key={index} className="flex items-center justify-between p-3 bg-white/10 rounded-lg">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-8 h-8 bg-white/20 rounded flex items-center justify-center">
+                          <span className="text-xs font-medium">
+                            {file.name.split('.').pop()?.toUpperCase()}
+                          </span>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium">{file.name}</p>
+                          <p className="text-xs text-white/60">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => removeFile(index)}
+                        className="text-white/60 hover:text-white p-1"
+                      >
+                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
+
+                  <button
+                    onClick={handleUpload}
+                    disabled={isProcessing}
+                    className="w-full py-3 bg-white text-amber-600 rounded-lg font-semibold hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {isProcessing ? 'Processing...' : mode === 'offline' ? 'Start with Local Model' : 'Start with Cloud API'}
+                  </button>
+                </div>
               </div>
-            </div>
             )}
           </div>
         </div>
@@ -234,7 +231,7 @@ const FileUpload = ({ onUploadSuccess, isProcessing, setIsProcessing }) => {
         {/* Features Section - Below Upload */}
         <div className="max-w-5xl mx-auto">
           <h3 className="text-3xl font-bold text-gray-800 text-center mb-12">Cross-Document Intelligence</h3>
-          
+
           <div className="grid md:grid-cols-3 gap-8 mb-12">
             <div className="bg-white/80 backdrop-blur-md rounded-xl p-6 text-center border border-amber-100 shadow-lg">
               <div className="w-12 h-12 bg-amber-100 rounded-lg flex items-center justify-center mx-auto mb-4">
@@ -243,9 +240,9 @@ const FileUpload = ({ onUploadSuccess, isProcessing, setIsProcessing }) => {
                 </svg>
               </div>
               <h4 className="text-gray-800 font-semibold mb-2">Multiple Formats</h4>
-              <p className="text-gray-600 text-sm">Upload PDFs, Word docs, images, and text files together</p>
+              <p className="text-gray-600 text-sm">Upload PDFs, Word docs, and text files together</p>
             </div>
-            
+
             <div className="bg-white/80 backdrop-blur-md rounded-xl p-6 text-center border border-amber-100 shadow-lg">
               <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center mx-auto mb-4">
                 <svg className="w-6 h-6 text-orange-600" fill="currentColor" viewBox="0 0 20 20">
@@ -255,7 +252,7 @@ const FileUpload = ({ onUploadSuccess, isProcessing, setIsProcessing }) => {
               <h4 className="text-gray-800 font-semibold mb-2">Cross-Document Analysis</h4>
               <p className="text-gray-600 text-sm">Compare and analyze information across all uploaded files</p>
             </div>
-            
+
             <div className="bg-white/80 backdrop-blur-md rounded-xl p-6 text-center border border-amber-100 shadow-lg">
               <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center mx-auto mb-4">
                 <svg className="w-6 h-6 text-yellow-600" fill="currentColor" viewBox="0 0 20 20">
@@ -266,7 +263,7 @@ const FileUpload = ({ onUploadSuccess, isProcessing, setIsProcessing }) => {
               <p className="text-gray-600 text-sm">Ask questions that span multiple documents with context-aware AI</p>
             </div>
           </div>
-          
+
           <div className="bg-white/80 backdrop-blur-md rounded-xl p-6 text-center border border-amber-100 shadow-lg">
             <div className="w-12 h-12 bg-amber-100 rounded-lg flex items-center justify-center mx-auto mb-4">
               <svg className="w-6 h-6 text-amber-600" fill="currentColor" viewBox="0 0 20 20">
