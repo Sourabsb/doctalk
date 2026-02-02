@@ -12,6 +12,7 @@ from ..models.db_models import Conversation, DocumentChunk, MindMap, Document
 from ..models.schemas import MindMapResponse, MindMapGenerateRequest, MindMapNode
 from ..utils.llm_router import get_llm_client
 from ..utils.ollama_client import LocalModeLock
+from ..utils.hierarchical_processor import hierarchical_mindmap_generation
 
 logger = logging.getLogger(__name__)
 
@@ -298,43 +299,25 @@ async def generate_mindmap(
         Document.is_active == True
     ).count()
     
+    all_chunks = [{"content": chunk.content, "metadata": {"source": chunk.document.filename if chunk.document else "Unknown"}} for chunk in chunks]
+    
     is_local = (conversation.llm_mode or "api") == "local"
-    context_limit = 8000 if is_local else 30000
-    
-    context = "\n\n".join([chunk.content for chunk in chunks])
-    context = context[:context_limit]
-    
-    # Use simpler prompt for local models
-    if is_local:
-        prompt = """You are a helpful assistant. Analyze the document below and create a mind map.
-
-You MUST respond with ONLY a JSON object in this exact format (no other text before or after):
-{"title": "Document Title", "nodes": [{"id": "1", "label": "Topic 1", "children": [{"id": "1.1", "label": "Subtopic"}]}, {"id": "2", "label": "Topic 2", "children": []}]}
-
-Document content:
-""" + context[:3000]
-    else:
-        prompt = MINDMAP_PROMPT.format(context=context)
     
     llm_client = get_llm_client(conversation.llm_mode, request.cloud_model)
     
     try:
         if is_local:
-            async with LocalModeLock(timeout=180.0):
-                response_text = await llm_client.generate_simple_response(prompt)
-        else:
-            result = await asyncio.wait_for(
-                llm_client.generate_response(prompt, [], [], ""),
-                timeout=180.0
+            mindmap_data = await hierarchical_mindmap_generation(
+                all_chunks, llm_client, 30, is_local=True
             )
-            if result and isinstance(result, dict):
-                response_text = result.get("response", "")
-            else:
-                response_text = ""
+        else:
+            mindmap_data = await hierarchical_mindmap_generation(
+                all_chunks, llm_client, 30, is_local=False
+            )
     except asyncio.TimeoutError:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Ollama is busy with another request. Please wait a moment and try again."
+            detail="Service is busy. Please try again."
         )
     except Exception as e:
         logger.exception("Failed to generate mind map: %s", e)
@@ -342,8 +325,6 @@ Document content:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to generate mind map"
         )
-    
-    mindmap_data = parse_mindmap_response(response_text)
     
     if not mindmap_data:
         raise HTTPException(

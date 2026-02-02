@@ -9,6 +9,7 @@ from ..models.db_models import Conversation, DocumentChunk, Flashcard
 from ..models.schemas import FlashcardResponse, FlashcardListResponse, FlashcardGenerateRequest
 from ..utils.llm_router import get_llm_client
 from ..utils.ollama_client import LocalModeLock
+from ..utils.hierarchical_processor import hierarchical_flashcard_generation
 
 router = APIRouter(tags=["flashcards"])
 
@@ -199,97 +200,37 @@ async def generate_flashcards(
             detail="No documents found in this conversation to generate flashcards from"
         )
     
-    # Get existing flashcard questions to avoid duplicates
-    existing_flashcards = (
-        db.query(Flashcard)
-        .filter(Flashcard.conversation_id == conversation_id)
-        .all()
-    )
+    all_chunks = [{"content": chunk.content, "metadata": {"source": chunk.document.filename if chunk.document else "Unknown"}} for chunk in chunks]
+    
+    existing_flashcards = db.query(Flashcard).filter(
+        Flashcard.conversation_id == conversation_id
+    ).all()
     existing_questions = [fc.front for fc in existing_flashcards]
     
-    # Use more context for comprehensive coverage (adjust for local/cloud)
     is_local = (conversation.llm_mode or "api") == "local"
-    context_limit = 8000 if is_local else 30000
-    
-    context = "\n\n".join([chunk.content for chunk in chunks])
-    context = context[:context_limit]
-    
-    # Adjust prompt for local mode to be faster (fewer cards)
-    base_prompt = FLASHCARD_PROMPT
-    if is_local:
-        # Force strict behavior for local model - very clear prompt
-        # Calculate space for existing questions (reserve ~500 chars for deduplication)
-        max_context_len = 3500
-        truncated_context = context[:max_context_len]
-        
-        # Build deduplication instruction if there are existing questions
-        dedup_instruction = ""
-        if existing_questions:
-            # Truncate existing questions to fit within remaining context budget
-            existing_qs_text = "; ".join(existing_questions[-15:])  # Last 15 questions
-            if len(existing_qs_text) > 300:
-                existing_qs_text = existing_qs_text[:300] + "..."
-            dedup_instruction = f"\n\nAVOID these existing questions: {existing_qs_text}"
-        
-        prompt = f"""You are a flashcard generator. Create 6-8 high-quality study flashcards from the document below.
-
-RULES:
-1. "front" = A clear, specific QUESTION about a key concept, skill, or fact
-2. "back" = A precise, informative ANSWER (not just a name or single word)
-3. Focus on: definitions, explanations, key concepts, technical terms, important facts
-4. Questions should test understanding, not just recall names
-5. Answers should be educational and explain the concept
-
-BAD examples (avoid these):
-- "Who created X?" -> "Person" (too vague, not educational)
-- "What is the name of...?" -> "Some name" (useless for learning)
-
-GOOD examples:
-- "What is LoRA in machine learning?" -> "LoRA (Low-Rank Adaptation) is a technique for efficiently fine-tuning large language models by adding small trainable matrices to attention layers, reducing memory and compute requirements while maintaining model quality."
-- "What does RAG stand for and what is it used for?" -> "RAG (Retrieval-Augmented Generation) combines document retrieval with LLM generation to answer questions using external knowledge sources, improving accuracy and reducing hallucinations."
-{dedup_instruction}
-Output ONLY valid JSON array, no other text:
-[{{"front": "Question?", "back": "Detailed educational answer"}}]
-
-Document:
-{truncated_context}"""
-    else:
-        # Build prompt with existing questions to avoid
-        if existing_questions:
-            questions_list = "\n".join([f"- {q}" for q in existing_questions])
-            prompt = base_prompt.format(context=context) + f"\n\nDo NOT reuse these questions:\n{questions_list}"
-        else:
-            prompt = base_prompt.format(context=context)
+    target_count = 15
     
     llm_client = get_llm_client(conversation.llm_mode, request.cloud_model)
     
     try:
         if is_local:
-            async with LocalModeLock(timeout=180.0):
-                response_text = await llm_client.generate_simple_response(prompt)
-        else:
-            result = await llm_client.generate_response(
-                prompt,
-                [],
-                [],
-                ""
+            flashcard_data = await hierarchical_flashcard_generation(
+                all_chunks, llm_client, 30, target_count, is_local=True, existing_questions=existing_questions
             )
-            if result and isinstance(result, dict):
-                response_text = result.get("response", "")
-            else:
-                response_text = ""
+        else:
+            flashcard_data = await hierarchical_flashcard_generation(
+                all_chunks, llm_client, 30, target_count, is_local=False, existing_questions=existing_questions
+            )
     except TimeoutError:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Ollama is busy with another request. Please wait a moment and try again."
+            detail="Service is busy. Please try again."
         )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to generate flashcards: {str(e)}"
         )
-    
-    flashcard_data = parse_flashcards_response(response_text)
     
     if not flashcard_data:
         raise HTTPException(

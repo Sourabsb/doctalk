@@ -56,9 +56,10 @@ DEFAULT_LLM_MODE = os.getenv(
     "api" if GEMINI_API_KEY else "local"
 ).lower()
 GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "tinyllama")  # 637MB - good balance speed/quality
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")
-OLLAMA_CONTEXT_LENGTH = int(os.getenv("OLLAMA_CONTEXT_LENGTH", "16384"))
+OLLAMA_CONTEXT_LENGTH = int(os.getenv("OLLAMA_CONTEXT_LENGTH", "2048"))  # CPU: reduced context = faster
+OLLAMA_MAX_PARALLEL = int(os.getenv("OLLAMA_MAX_PARALLEL", "6"))  # Use all 6 CPU cores!
 
 # =============================================================================
 # Session & File Processing Settings
@@ -78,5 +79,5 @@ QDRANT_COLLECTION_NAME = os.getenv("QDRANT_COLLECTION_NAME", "doctalk_chunks")
 # =============================================================================
 # Embedding Model Configuration
 # =============================================================================
-EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "nomic-ai/nomic-embed-text-v1.5")
-EMBEDDING_DIMENSION = int(os.getenv("EMBEDDING_DIMENSION", "768"))
+EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
+EMBEDDING_DIMENSION = int(os.getenv("EMBEDDING_DIMENSION", "384"))

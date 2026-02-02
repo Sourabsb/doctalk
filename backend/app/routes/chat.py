@@ -8,6 +8,7 @@ from ..models.schemas import ChatRequest, ChatResponse, ChatMessageResponse, Res
 from ..utils.embeddings import HybridRAGProcessor
 from ..utils.llm_router import get_llm_client
 from ..utils.ollama_client import LLMRequestContext, LocalModeLock, acquire_llm_lock, release_llm_lock
+from ..utils.hierarchical_processor import hierarchical_summarization
 from ..dependencies import get_db, get_current_user
 from ..models.db_models import Conversation, DocumentChunk, ChatMessage, Document
 from ..database import SessionLocal
@@ -207,65 +208,90 @@ async def chat(
         'overview', 'gist', 'main points', 'key points', 'highlights'
     ])
 
-    if is_summary_request:
-        # For summary requests, get more document chunks and skip chat history search
-        context_result = hybrid_rag.build_context(
-            query=chat_request.message,
-            chat_history=chat_history,
-            doc_k=20,  # More document chunks for summaries
-            chat_k=0,   # Skip chat history for summaries
-            recent_messages=4
-        )
-    else:
-        # For regular queries, use hybrid search
-        context_result = hybrid_rag.build_context(
-            query=chat_request.message,
-            chat_history=chat_history,
-            doc_k=8,    # Relevant document chunks
-            chat_k=3,   # Relevant past conversations
-            recent_messages=8  # Recent conversational context
-        )
-
-    # Prepare context documents for Gemini
-    formatted_context_docs = [
-        {
-            "page_content": doc["content"],
-            "metadata": doc["metadata"]
-        }
-        for doc in context_result["document_chunks"]
-    ]
-
-    # Build enhanced chat history with recent context
-    recent_context = context_result.get("recent_context", [])
-    
-    # Combine hybrid context with document availability info
-    combined_context = context_result.get("combined_context", "") + doc_context_info
-    
-    # Use queue to serialize LLM requests per conversation
-    # For local mode, use global lock to prevent concurrent Ollama requests
     is_local = (conversation.llm_mode or "api") == "local"
-    try:
-        if is_local:
-            async with LocalModeLock(timeout=180.0):
+    is_gemini = (conversation.llm_mode == "api" and chat_request.cloud_model == "gemini")
+    
+    if is_summary_request:
+        all_chunks = []
+        if active_doc_ids:
+            for doc_id in active_doc_ids:
+                doc_chunks = db.query(DocumentChunk).filter(
+                    DocumentChunk.conversation_id == conversation.id,
+                    DocumentChunk.document_id == doc_id
+                ).order_by(DocumentChunk.chunk_index).all()
+                all_chunks.extend([{"content": chunk.content, "metadata": {"source": chunk.document.filename if chunk.document else "Unknown"}} for chunk in doc_chunks])
+        else:
+            doc_chunks = db.query(DocumentChunk).filter(
+                DocumentChunk.conversation_id == conversation.id
+            ).order_by(DocumentChunk.document_id, DocumentChunk.chunk_index).all()
+            all_chunks = [{"content": chunk.content, "metadata": {"source": chunk.document.filename if chunk.document else "Unknown"}} for chunk in doc_chunks]
+        
+        if not all_chunks:
+            raise HTTPException(status_code=400, detail="No documents found for summarization")
+        
+        try:
+            if is_local:
+                async with LLMRequestContext(conversation.id):
+                    summary_text = await hierarchical_summarization(
+                        all_chunks, llm_client, 30, is_local=True
+                    )
+            else:
+                async with LLMRequestContext(conversation.id):
+                    summary_text = await hierarchical_summarization(
+                        all_chunks, llm_client, 30, is_local=False
+                    )
+            
+            result = {"response": summary_text, "sources": [], "source_chunks": []}
+        except TimeoutError:
+            raise HTTPException(status_code=503, detail="Service is busy. Please try again.")
+        except ValueError as exc:
+            raise HTTPException(status_code=500, detail=str(exc))
+    else:
+        print(f"[Chat] Query: '{chat_request.message[:100]}...'")
+        print(f"[Chat] Building hybrid context (doc_k=8, chat_k=3)...")
+        context_result = hybrid_rag.build_context(
+            query=chat_request.message,
+            chat_history=chat_history,
+            doc_k=8,
+            chat_k=3,
+            recent_messages=8
+        )
+
+        formatted_context_docs = [
+            {"page_content": doc["content"], "metadata": doc["metadata"]}
+            for doc in context_result["document_chunks"]
+        ]
+        print(f"[Chat] Found {len(formatted_context_docs)} document chunks")
+
+        recent_context = context_result.get("recent_context", [])
+        combined_context = context_result.get("combined_context", "") + doc_context_info
+        
+        import time
+        start_time = time.time()
+        print(f"[Chat] Starting generation...")
+        try:
+            if is_local:
                 async with LLMRequestContext(conversation.id):
                     result = await llm_client.generate_response(
                         chat_request.message,
                         formatted_context_docs,
-                        recent_context,  # Use recent messages for conversational continuity
-                        combined_context  # Additional context from hybrid search + doc info
+                        recent_context,
+                        combined_context
                     )
-        else:
-            async with LLMRequestContext(conversation.id):
-                result = await llm_client.generate_response(
-                    chat_request.message,
-                    formatted_context_docs,
-                    recent_context,  # Use recent messages for conversational continuity
-                    combined_context  # Additional context from hybrid search + doc info
-                )
-    except TimeoutError:
-        raise HTTPException(status_code=503, detail="Ollama is busy with another request. Please wait and try again.")
-    except ValueError as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+            else:
+                async with LLMRequestContext(conversation.id):
+                    result = await llm_client.generate_response(
+                        chat_request.message,
+                        formatted_context_docs,
+                        recent_context,
+                        combined_context
+                    )
+            elapsed = time.time() - start_time
+            print(f"[Chat] Completed in {elapsed:.2f}s")
+        except TimeoutError:
+            raise HTTPException(status_code=503, detail="Ollama is busy. Please try again.")
+        except ValueError as exc:
+            raise HTTPException(status_code=500, detail=str(exc))
 
     user_message = ChatMessage(
         conversation_id=conversation.id,
@@ -589,20 +615,28 @@ async def chat_stream(
             yield f"data: {json.dumps({'type': 'error', 'message': 'Another request is in progress. Please wait and try again.'})}\n\n"
             return
         
+        print(f"[Chat Stream] Query: '{chat_request.message[:100]}...'")
+        print(f"[Chat Stream] Found {len(formatted_context_docs)} document chunks")
+        
+        import time
+        start_time = time.time()
+        token_count = 0
+        print(f"[Chat Stream] Starting generation...")
+        
         try:
             # Check if streaming is supported (local mode)
             if hasattr(llm_client, 'generate_response_stream'):
                 try:
                     if is_local:
-                        async with LocalModeLock(timeout=180.0):
-                            async for token in llm_client.generate_response_stream(
-                                chat_request.message,
-                                formatted_context_docs,
-                                recent_context,
-                                combined_context
-                            ):
-                                full_response += token
-                                yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
+                        async for token in llm_client.generate_response_stream(
+                            chat_request.message,
+                            formatted_context_docs,
+                            recent_context,
+                            combined_context
+                        ):
+                            full_response += token
+                            token_count += 1
+                            yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
                     else:
                         async for token in llm_client.generate_response_stream(
                             chat_request.message,
@@ -611,6 +645,7 @@ async def chat_stream(
                             combined_context
                         ):
                             full_response += token
+                            token_count += 1
                             yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
                 except Exception as e:
                     error_occurred = True
@@ -640,6 +675,9 @@ async def chat_stream(
             await release_llm_lock(conv_id)
 
         # Save assistant message after streaming completes (even on error to prevent orphaned user messages)
+        elapsed = time.time() - start_time
+        print(f"[Chat Stream] Generated {token_count} tokens in {elapsed:.2f}s")
+        
         session = SessionLocal()
         try:
             if error_occurred:
