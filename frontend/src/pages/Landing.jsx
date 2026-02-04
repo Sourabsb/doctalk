@@ -212,9 +212,11 @@ const Landing = () => {
       <header className={`sticky top-0 z-50 ${theme.navBg} border-b ${theme.divider} transition-all duration-500`}>
         <div className="max-w-7xl mx-auto px-8 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2.5 cursor-pointer" onClick={() => navigate('/')}>
-            <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${theme.accent} flex items-center justify-center shadow-lg shadow-amber-500/25`}>
-              <span className="text-gray-900 font-bold text-base">D</span>
-            </div>
+            <img 
+              src="/img/icon.png" 
+              alt="DocTalk Logo" 
+              className="w-8 h-8 object-contain"
+            />
             <span className={`text-lg font-semibold tracking-tight ${theme.text}`}>DocTalk</span>
           </div>
           <div className="flex items-center gap-2">
@@ -1010,9 +1012,11 @@ const Landing = () => {
       <footer className={`relative z-10 max-w-7xl mx-auto px-8 py-10 border-t ${theme.divider}`}>
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-sm">
           <div className="flex items-center gap-2">
-            <div className={`w-6 h-6 rounded-md bg-gradient-to-br ${theme.accent} flex items-center justify-center`}>
-              <span className="text-gray-900 font-bold text-xs">D</span>
-            </div>
+            <img 
+              src="/img/icon.png" 
+              alt="DocTalk Logo" 
+              className="w-6 h-6 object-contain"
+            />
             <span className={theme.textSubtle}>DocTalk</span>
           </div>
           <p className={theme.textSubtle}>© 2025 DocTalk. All rights reserved.</p>

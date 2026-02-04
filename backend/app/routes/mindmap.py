@@ -308,11 +308,11 @@ async def generate_mindmap(
     try:
         if is_local:
             mindmap_data = await hierarchical_mindmap_generation(
-                all_chunks, llm_client, 30, is_local=True
+                all_chunks, llm_client, 50, is_local=True
             )
         else:
             mindmap_data = await hierarchical_mindmap_generation(
-                all_chunks, llm_client, 30, is_local=False
+                all_chunks, llm_client, 50, is_local=False
             )
     except asyncio.TimeoutError:
         raise HTTPException(

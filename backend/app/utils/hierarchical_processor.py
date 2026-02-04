@@ -44,6 +44,46 @@ def _select_intelligent_chunks(all_chunks: List[Dict], target_count: int = 8) ->
     return selected
 
 
+def _select_mindmap_chunks_cloud(all_chunks: List[Dict]) -> List[Dict]:
+    """
+    Select chunks for cloud mindmap with fixed pattern: 10 start + 20 middle + 10 end = 40 total.
+    This provides comprehensive coverage for detailed mindmap generation.
+    """
+    logger.info(f"[Cloud Mindmap Selection] Starting with {len(all_chunks)} total chunks")
+    
+    if len(all_chunks) <= 40:
+        logger.info(f"[Cloud Mindmap Selection] Document small, returning all {len(all_chunks)} chunks")
+        return all_chunks
+    
+    selected = []
+    
+    # Take first 10 chunks
+    first_count = 10
+    selected.extend(all_chunks[:first_count])
+    logger.info(f"[Cloud Mindmap Selection] Added {first_count} starting chunks")
+    
+    # Take last 10 chunks
+    last_count = 10
+    selected.extend(all_chunks[-last_count:])
+    logger.info(f"[Cloud Mindmap Selection] Added {last_count} ending chunks")
+    
+    # Take 20 random chunks from middle
+    middle_start = first_count
+    middle_end = len(all_chunks) - last_count
+    middle_chunks = all_chunks[middle_start:middle_end]
+    logger.info(f"[Cloud Mindmap Selection] Middle section has {len(middle_chunks)} chunks available")
+    
+    if middle_chunks:
+        random_count = min(20, len(middle_chunks))
+        if random_count > 0:
+            random_selection = random.sample(middle_chunks, random_count)
+            selected.extend(random_selection)
+            logger.info(f"[Cloud Mindmap Selection] Added {random_count} random middle chunks")
+    
+    logger.info(f"[Cloud Mindmap Selection] Final selection: {len(selected)} chunks (10 start + {len(selected)-20} middle + 10 end)")
+    return selected
+
+
 async def hierarchical_summarization(
     all_chunks: List[Dict],
     llm_client: Any,
@@ -80,9 +120,9 @@ async def hierarchical_summarization(
 Create a detailed summary covering all major topics, key points, and important details."""
     
     # Batching for local mode with limited token context
-    if is_local and len(selected_chunks) > 6:
+    if is_local and len(selected_chunks) > 10:
         # Process in batches for better coverage
-        batch_size = 6
+        batch_size = 10
         batches = [selected_chunks[i:i+batch_size] for i in range(0, len(selected_chunks), batch_size)]
         print(f"[Summary] Using {len(batches)} batches for comprehensive coverage")
         
@@ -176,19 +216,28 @@ Document Content:
 
 Generate the mind map structure."""
     
-    # Batching for local mode - process in smaller chunks to work within token limits
-    chunk_count = 30  # Same as cloud for comprehensive coverage
-    selected_chunks = _select_intelligent_chunks(all_chunks, target_count=chunk_count)
+    if is_local:
+        # Local: 30 chunks for comprehensive mindmap without overload
+        selected_chunks = _select_intelligent_chunks(all_chunks, target_count=30)
+        mode_label = "LOCAL/GPU"
+        logger.info(
+            f"[Mindmap LOCAL] Total chunks available: {len(all_chunks)}, Selected: {len(selected_chunks)} (target 30)"
+        )
+    else:
+        # Cloud: full 10+20+10 coverage
+        selected_chunks = _select_mindmap_chunks_cloud(all_chunks)
+        mode_label = "CLOUD/API"
+        logger.info(
+            f"[Mindmap CLOUD] Total chunks available: {len(all_chunks)}, Selected with 10+20+10 pattern: {len(selected_chunks)}"
+        )
     
-    mode_label = "LOCAL/GPU" if is_local else "CLOUD/API"
     logger.info(f"[Mindmap] Selected {len(selected_chunks)} chunks from {len(all_chunks)} total ({mode_label} MODE)")
     
-    # Batch processing for better results with limited tokens
-    if is_local and len(selected_chunks) > 6:
-        # Split into batches of 5-6 chunks each for local mode
-        batch_size = 6
+    # Batch processing: only when needed to avoid over-long prompts
+    if len(selected_chunks) > 8:
+        batch_size = 5 if is_local else 8
         batches = [selected_chunks[i:i+batch_size] for i in range(0, len(selected_chunks), batch_size)]
-        logger.info(f"[Mindmap] Using {len(batches)} batches for better coverage")
+        logger.info(f"[Mindmap] Using {len(batches)} batches of {batch_size} chunks each for better coverage")
         
         all_mindmaps = []
         for batch_idx, batch in enumerate(batches):
@@ -242,7 +291,8 @@ async def hierarchical_flashcard_generation(
     if existing_questions is None:
         existing_questions = []
     
-    chunk_count = 30  # Same as cloud for comprehensive coverage
+    # Local mode uses fewer chunks to reduce processing time
+    chunk_count = 10 if is_local else 30
     selected_chunks = _select_intelligent_chunks(all_chunks, target_count=chunk_count)
     
     mode_label = "LOCAL/GPU" if is_local else "CLOUD/API"
@@ -282,9 +332,9 @@ Generate the flashcards."""
     print(f"[Flashcards] Starting generation of {target_count} cards...")
     
     # Batching for local mode to handle large documents
-    if is_local and len(selected_chunks) > 6:
+    if is_local and len(selected_chunks) >= 5:
         print(f"[Flashcards] Using batching with {len(selected_chunks)} chunks")
-        batch_size = 6
+        batch_size = 5  # Process 5 chunks per batch for better local GPU handling
         batches = [selected_chunks[i:i+batch_size] for i in range(0, len(selected_chunks), batch_size)]
         cards_per_batch = max(3, target_count // len(batches))
         

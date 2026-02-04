@@ -4,7 +4,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 300000, // 5 minutes timeout for slow local LLM operations
+  timeout: 500000, // 8.33 minutes timeout for slow local LLM operations (mindmap generation)
 })
 
 api.interceptors.request.use((config) => {

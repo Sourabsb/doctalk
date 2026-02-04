@@ -1,6 +1,21 @@
 import React, { useState } from 'react'
 import { formatDistanceToNow } from 'date-fns'
 
+// Shadcn components
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { Separator } from '@/components/ui/separator'
+import { cn } from '@/lib/utils'
+
+// Lucide icons
+import {
+  Plus, Search, ChevronLeft, ChevronRight, Trash2,
+  Settings, LogOut, ChevronDown, MessageSquare, FileText
+} from 'lucide-react'
+
 const ConversationSidebar = ({
   conversations,
   activeId,
@@ -12,178 +27,303 @@ const ConversationSidebar = ({
   isCollapsed,
   onToggleCollapse,
   onNewChat,
-  onOpenProfileSettings = () => {}
+  onOpenProfileSettings = () => { },
+  isDark = false
 }) => {
   const [showSettings, setShowSettings] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
 
-  const filteredConversations = conversations.filter(conv => 
+  const filteredConversations = conversations.filter(conv =>
     conv.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
     (conv.last_message && conv.last_message.toLowerCase().includes(searchQuery.toLowerCase()))
   )
 
-  return (
-    <aside className={`${isCollapsed ? 'w-16' : 'w-full md:w-80'} bg-white/90 backdrop-blur-md border-r border-amber-100 flex flex-col transition-all duration-300`}>
-      {/* Top Section with Toggle and Actions */}
-      <div className="p-3 space-y-2">
-        <div className="flex items-center justify-between">
-          <button
-            onClick={onToggleCollapse}
-            className="text-gray-500 hover:text-amber-600 p-2 rounded-lg hover:bg-amber-50 transition"
-            title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              {isCollapsed ? (
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
-              ) : (
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
-              )}
-            </svg>
-          </button>
-        </div>
+  // Theme colors matching ChatInterface
+  const theme = {
+    text: isDark ? 'text-gray-100' : 'text-gray-900',
+    textSecondary: isDark ? 'text-gray-400' : 'text-gray-600',
+    textMuted: isDark ? 'text-gray-500' : 'text-gray-500',
+  }
 
-        {!isCollapsed && (
-          <>
-            <button
-              onClick={onNewChat}
-              className="w-full flex items-center space-x-2 px-3 py-2 text-gray-600 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition text-sm"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              <span>New Chat</span>
-            </button>
+  return (
+    <TooltipProvider>
+      <aside
+        className={cn(
+          "flex flex-col transition-all duration-300 glass border-r border-border/50",
+          isCollapsed ? "w-16" : "w-80"
+        )}
+      >
+        {/* Top Section */}
+        <div className="p-3 space-y-3">
+          <div className="flex items-center justify-between">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={onToggleCollapse}
+                >
+                  {isCollapsed ? (
+                    <ChevronRight className="h-4 w-4" />
+                  ) : (
+                    <ChevronLeft className="h-4 w-4" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="right" variant="glass">
+                {isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              </TooltipContent>
+            </Tooltip>
+
+            {!isCollapsed && (
+              <Button
+                variant="default"
+                size="sm"
+                onClick={onNewChat}
+                className="gap-2"
+              >
+                <Plus className="h-4 w-4" />
+                New Chat
+              </Button>
+            )}
+          </div>
+
+          {!isCollapsed && (
             <div className="relative">
-              <input
+              <Search className={`absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 ${theme.textSecondary}`} />
+              <Input
                 type="text"
                 placeholder="Search chats..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full px-3 py-2 pl-9 bg-amber-50 border border-amber-100 rounded-lg text-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                className={`pl-9 h-9 ${theme.text} placeholder:${theme.textMuted}`}
+                variant="filled"
               />
-              <svg className="w-4 h-4 absolute left-3 top-2.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
             </div>
-          </>
-        )}
-      </div>
+          )}
 
-      {/* Conversations List */}
-      <div className="flex-1 overflow-y-auto p-2">
-        {!isCollapsed && (
-          <div className="space-y-0">
-            {filteredConversations.length === 0 && (
-              <p className="text-sm text-gray-500 px-3 py-2">{searchQuery ? 'No matching conversations.' : 'No conversations yet.'}</p>
+          {isCollapsed && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="default"
+                  size="icon"
+                  onClick={onNewChat}
+                  className="w-full"
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="right" variant="glass">
+                New Chat
+              </TooltipContent>
+            </Tooltip>
+          )}
+        </div>
+
+        <Separator />
+
+        {/* Conversations List */}
+        <ScrollArea className="flex-1 px-1">
+          <div className="pr-2 pl-2 py-2 space-y-1">
+            {!isCollapsed ? (
+              <>
+                {filteredConversations.length === 0 ? (
+                  <div className="text-center py-8">
+                    <MessageSquare className={`h-8 w-8 ${theme.textSecondary} opacity-40 mx-auto mb-2`} />
+                    <p className={`text-sm ${theme.textSecondary}`}>
+                      {searchQuery ? 'No matching chats' : 'No conversations yet'}
+                    </p>
+                  </div>
+                ) : (
+                  filteredConversations.map((conversation) => (
+                    <div
+                      key={conversation.id}
+                      onClick={() => onSelect(conversation.id)}
+                      className={cn(
+                        "group relative flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all",
+                        activeId === conversation.id
+                          ? "bg-primary/10 border border-primary/20"
+                          : "hover:bg-muted/50"
+                      )}
+                    >
+                      <div className={cn(
+                        "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors",
+                        activeId === conversation.id
+                          ? "bg-primary/20"
+                          : "bg-muted"
+                      )}>
+                        <FileText className={cn(
+                          "h-4 w-4",
+                          activeId === conversation.id ? "text-primary" : theme.textSecondary
+                        )} />
+                      </div>
+                      <div className="flex-1 overflow-hidden">
+                        <p className={cn(
+                          "text-sm font-medium truncate",
+                          activeId === conversation.id ? "text-primary" : theme.text
+                        )}>
+                          {conversation.title || 'Untitled'}
+                        </p>
+                        <p className={cn(
+                          "text-xs truncate",
+                          activeId === conversation.id ? "text-primary/70" : theme.textSecondary
+                        )}>
+                          {formatDistanceToNow(new Date(conversation.updated_at || conversation.created_at), { addSuffix: true })}
+                        </p>
+                      </div>
+
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onDelete(conversation.id)
+                            }}
+                            className="opacity-0 group-hover:opacity-100 h-7 w-7 text-muted-foreground hover:text-destructive transition-opacity"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent variant="glass">Delete</TooltipContent>
+                      </Tooltip>
+                    </div>
+                  ))
+                )}
+              </>
+            ) : (
+              // Collapsed state - show icons only
+              filteredConversations.slice(0, 8).map((conversation) => (
+                <Tooltip key={conversation.id}>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={() => onSelect(conversation.id)}
+                      className={cn(
+                        "w-full p-2.5 rounded-xl transition-all flex items-center justify-center",
+                        activeId === conversation.id
+                          ? "bg-primary/10 border border-primary/20"
+                          : "hover:bg-muted/50"
+                      )}
+                    >
+                      <FileText className={cn(
+                        "h-4 w-4",
+                        activeId === conversation.id ? "text-primary" : "text-muted-foreground"
+                      )} />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right" variant="glass">
+                    {conversation.title || 'Untitled'}
+                  </TooltipContent>
+                </Tooltip>
+              ))
             )}
-            {filteredConversations.map((conversation) => (
-              <div
-                key={conversation.id}
-                className={`group relative px-3 py-2.5 rounded-lg transition cursor-pointer ${
-                  activeId === conversation.id ? 'bg-amber-100' : 'hover:bg-amber-50'
-                }`}
-                onClick={() => onSelect(conversation.id)}
+          </div>
+        </ScrollArea>
+
+        <Separator />
+
+        {/* Bottom User Section */}
+        <div className="p-3">
+          {!isCollapsed ? (
+            <div className="space-y-2">
+              <button
+                onClick={() => setShowSettings(!showSettings)}
+                className="w-full flex items-center gap-3 p-2 rounded-xl hover:bg-muted/50 transition-colors"
               >
-                <div className="flex items-center justify-between gap-2">
-                  <h3 className="text-sm text-gray-700 truncate flex-1">
-                    {conversation.title}
-                  </h3>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onDelete(conversation.id)
-                    }}
-                    className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-opacity"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
+                <Avatar size="sm">
+                  <AvatarFallback variant="primary" className="text-xs">
+                    {user?.name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U'}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 text-left overflow-hidden">
+                  <p className={`text-sm font-medium ${theme.text} truncate`}>{user?.name || 'User'}</p>
+                  <p className={`text-xs ${theme.textSecondary} truncate`}>{user?.email}</p>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+                <ChevronDown className={cn(
+                  `h-4 w-4 ${theme.textSecondary} transition-transform`,
+                  showSettings && "rotate-180"
+                )} />
+              </button>
 
-      {/* Bottom User Section */}
-      <div className="p-3 border-t border-amber-100">
-        {!isCollapsed ? (
-          <div className="space-y-2">
-            <button
-              onClick={() => setShowSettings(!showSettings)}
-              className="w-full flex items-center space-x-3 p-2 rounded-lg hover:bg-amber-50 transition text-gray-700"
-            >
-              <div className="w-8 h-8 bg-gradient-to-r from-amber-400 to-orange-500 rounded-full flex items-center justify-center flex-shrink-0">
-                <span className="text-sm font-bold text-white">{user?.name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U'}</span>
-              </div>
-              <div className="flex-1 text-left overflow-hidden">
-                <p className="text-sm font-medium truncate">{user?.name || 'User'}</p>
-                <p className="text-xs text-gray-500 truncate">{user?.email}</p>
-              </div>
-              <svg className={`w-4 h-4 text-gray-400 transition-transform ${showSettings ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            </button>
+              {showSettings && (
+                <div className="space-y-1 animate-fade-in-up">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={onOpenProfileSettings}
+                    className="w-full justify-start gap-2"
+                  >
+                    <Settings className="h-4 w-4" />
+                    Profile & Settings
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={onLogout}
+                    className="w-full justify-start gap-2 text-muted-foreground hover:text-destructive"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    Sign out
+                  </Button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center space-y-2">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => setShowSettings(!showSettings)}
+                    className="transition-transform hover:scale-105"
+                  >
+                    <Avatar size="default">
+                      <AvatarFallback variant="primary" className="text-sm">
+                        {user?.name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U'}
+                      </AvatarFallback>
+                    </Avatar>
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="right" variant="glass">
+                  {user?.name || user?.email}
+                </TooltipContent>
+              </Tooltip>
 
-            {showSettings && (
-              <div className="space-y-1 pl-2">
-                <button
-                  onClick={onOpenProfileSettings}
-                  className="w-full flex items-center space-x-2 p-2 rounded-lg hover:bg-amber-50 transition text-gray-600 hover:text-amber-700 text-sm"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0a1.724 1.724 0 002.573.99c.857-.495 1.91.358 1.654 1.287a1.724 1.724 0 001.357 2.17c.95.21 1.278 1.36.6 2.012a1.724 1.724 0 000 2.486c.678.652.35 1.802-.6 2.011a1.724 1.724 0 00-1.357 2.171c.256.929-.797 1.782-1.654 1.287a1.724 1.724 0 00-2.573.989c-.299.922-1.603.922-1.902 0a1.724 1.724 0 00-2.573-.99c-.857.495-1.91-.358-1.654-1.287a1.724 1.724 0 00-1.357-2.17c-.95-.21-1.278-1.36-.6-2.012a1.724 1.724 0 000-2.486c-.678-.652-.35-1.802.6-2.011a1.724 1.724 0 001.357-2.171c-.256-.929.797-1.782 1.654-1.287.91.526 2.063-.087 2.573-.989z" />
-                  </svg>
-                  <span>Profile & Settings</span>
-                </button>
-                <button
-                  onClick={onLogout}
-                  className="w-full flex items-center space-x-2 p-2 rounded-lg hover:bg-amber-50 transition text-gray-600 hover:text-amber-700 text-sm"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                  </svg>
-                  <span>Logout</span>
-                </button>
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="flex flex-col items-center space-y-3">
-            <button
-              onClick={() => setShowSettings(!showSettings)}
-              className="w-10 h-10 bg-gradient-to-r from-amber-400 to-orange-500 rounded-full flex items-center justify-center hover:opacity-80 transition"
-              title={user?.name || user?.email}
-            >
-              <span className="text-sm font-bold text-white">{user?.name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U'}</span>
-            </button>
-            {showSettings && (
-              <div className="flex flex-col items-center space-y-2">
-                <button
-                  onClick={onOpenProfileSettings}
-                  className="w-10 h-10 rounded-lg hover:bg-amber-50 transition text-gray-600 hover:text-amber-700 flex items-center justify-center"
-                  title="Profile & Settings"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0a1.724 1.724 0 002.573.99c.857-.495 1.91.358 1.654 1.287a1.724 1.724 0 001.357 2.17c.95.21 1.278 1.36.6 2.012a1.724 1.724 0 000 2.486c.678.652.35 1.802-.6 2.011a1.724 1.724 0 00-1.357 2.171c.256.929-.797 1.782-1.654 1.287a1.724 1.724 0 00-2.573.989c-.299.922-1.603.922-1.902 0a1.724 1.724 0 00-2.573-.99c-.857.495-1.91-.358-1.654-1.287a1.724 1.724 0 00-1.357-2.17c-.95-.21-1.278-1.36-.6-2.012a1.724 1.724 0 000-2.486c-.678-.652-.35-1.802.6-2.011a1.724 1.724 0 001.357-2.171c-.256-.929.797-1.782 1.654-1.287.91.526 2.063-.087 2.573-.989z" />
-                  </svg>
-                </button>
-                <button
-                  onClick={onLogout}
-                  className="w-10 h-10 rounded-lg hover:bg-amber-50 transition text-gray-600 hover:text-amber-700 flex items-center justify-center"
-                  title="Logout"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                  </svg>
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    </aside>
+              {showSettings && (
+                <div className="flex flex-col items-center space-y-1 animate-fade-in-up">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={onOpenProfileSettings}
+                      >
+                        <Settings className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="right" variant="glass">Settings</TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={onLogout}
+                        className="text-muted-foreground hover:text-destructive"
+                      >
+                        <LogOut className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="right" variant="glass">Sign out</TooltipContent>
+                  </Tooltip>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </aside>
+    </TooltipProvider>
   )
 }
 

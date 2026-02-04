@@ -185,3 +185,23 @@ PAST CONVERSATIONS:
                     "chunk": content[:800]
                 })
         return source_chunks
+
+    async def generate_simple_response(self, prompt: str) -> str:
+        """Simple generation without document context - for mindmap/flashcards."""
+        messages = [{"role": "user", "content": prompt}]
+
+        try:
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(
+                None,
+                lambda: self.client.chat.completions.create(
+                    model=self.model_name,
+                    messages=messages,
+                    stream=False,
+                    temperature=0.7,
+                )
+            )
+
+            return response.choices[0].message.content if response.choices else ""
+        except Exception as e:
+            raise ValueError(f"Failed to generate simple response: {str(e)}")

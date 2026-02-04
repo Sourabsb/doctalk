@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 
 const MindMapCanvas = ({
     mindMapData,
@@ -332,7 +333,7 @@ const MindMapCanvas = ({
         if (!container) return;
         container.addEventListener('wheel', handleWheel, { passive: false });
         return () => container.removeEventListener('wheel', handleWheel);
-    }, [handleWheel]);
+    }, [handleWheel, isFullscreen]);
 
     const handleZoomIn = () => {
         const newZoom = Math.min(2.5, zoom + 0.12);
@@ -356,12 +357,12 @@ const MindMapCanvas = ({
     // Node styles
     const getNodeStyle = () => {
         return {
-            background: isDark ? 'rgba(45, 55, 72, 0.95)' : 'rgba(255, 255, 255, 0.98)',
-            border: isDark ? '1px solid rgba(100, 116, 139, 0.5)' : '1px solid rgba(203, 213, 225, 0.8)',
-            color: isDark ? '#e2e8f0' : '#1e293b',
+            background: 'hsl(var(--card))',
+            border: '1px solid hsl(var(--border))',
+            color: 'hsl(var(--card-foreground))',
             boxShadow: isDark
-                ? '0 2px 8px rgba(0, 0, 0, 0.25)'
-                : '0 2px 8px rgba(0, 0, 0, 0.06)'
+                ? '0 10px 15px -3px rgba(0, 0, 0, 0.5)'
+                : '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
         };
     };
 
@@ -371,10 +372,8 @@ const MindMapCanvas = ({
         return `M ${fromX} ${fromY} C ${fromX + controlOffset} ${fromY}, ${toX - controlOffset} ${toY}, ${toX} ${toY}`;
     };
 
-    const lineColor = isDark ? 'rgba(148, 163, 184, 0.5)' : 'rgba(148, 163, 184, 0.65)';
-    const bgColor = isDark
-        ? 'linear-gradient(180deg, #1a1b1e 0%, #0f0f10 100%)'
-        : 'linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%)';
+    const lineColor = isDark ? '#ffffff' : '#000000';
+    const bgColor = 'hsl(var(--background))';
 
     const fullscreenStyle = isFullscreen ? {
         position: 'fixed',
@@ -382,13 +381,13 @@ const MindMapCanvas = ({
         left: 0,
         width: '100vw',
         height: '100vh',
-        zIndex: 9999,
+        zIndex: 2147483647,
         padding: 0,
         margin: 0,
         borderRadius: 0
     } : {};
 
-    return (
+    const canvasContent = (
         <div
             ref={containerRef}
             className="relative overflow-hidden"
@@ -404,10 +403,7 @@ const MindMapCanvas = ({
             {isFullscreen && onExitFullscreen && (
                 <button
                     onClick={onExitFullscreen}
-                    className={`absolute top-4 left-4 z-50 flex items-center gap-2 px-3 py-2 rounded-lg border transition-all ${isDark
-                        ? 'border-white/10 bg-gray-900/95 hover:bg-gray-800 text-gray-300'
-                        : 'border-gray-200 bg-white/95 hover:bg-gray-50 text-gray-600'
-                        } shadow-lg backdrop-blur-sm`}
+                    className={`absolute top-4 left-4 z-[100] flex items-center gap-2 px-3 py-2 rounded-lg border transition-all bg-card border-border text-card-foreground hover:bg-accent shadow-lg backdrop-blur-sm`}
                     title="Exit fullscreen"
                 >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -418,15 +414,12 @@ const MindMapCanvas = ({
             )}
 
             {/* Zoom Controls */}
-            <div className="absolute bottom-4 right-4 flex flex-col gap-1.5 z-50" style={{ pointerEvents: 'auto' }}>
+            <div className="absolute bottom-4 right-4 flex flex-col gap-1.5 z-[100]" style={{ pointerEvents: 'auto' }}>
                 <button
                     onClick={handleZoomIn}
                     aria-label="Zoom in"
                     title="Zoom in"
-                    className={`w-8 h-8 flex items-center justify-center rounded-lg border transition-all ${isDark
-                        ? 'border-white/10 bg-gray-900/90 hover:bg-gray-800 text-gray-300'
-                        : 'border-gray-200 bg-white/95 hover:bg-gray-50 text-gray-600'
-                        } shadow-lg backdrop-blur-sm`}
+                    className="w-8 h-8 flex items-center justify-center rounded-lg border transition-all bg-card border-border text-card-foreground hover:bg-accent shadow-lg backdrop-blur-sm"
                 >
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                         <path d="M12 5v14M5 12h14" />
@@ -436,10 +429,7 @@ const MindMapCanvas = ({
                     onClick={handleZoomOut}
                     aria-label="Zoom out"
                     title="Zoom out"
-                    className={`w-8 h-8 flex items-center justify-center rounded-lg border transition-all ${isDark
-                        ? 'border-white/10 bg-gray-900/90 hover:bg-gray-800 text-gray-300'
-                        : 'border-gray-200 bg-white/95 hover:bg-gray-50 text-gray-600'
-                        } shadow-lg backdrop-blur-sm`}
+                    className="w-8 h-8 flex items-center justify-center rounded-lg border transition-all bg-card border-border text-card-foreground hover:bg-accent shadow-lg backdrop-blur-sm"
                 >
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                         <path d="M5 12h14" />
@@ -448,10 +438,7 @@ const MindMapCanvas = ({
                 <button
                     onClick={handleReset}
                     aria-label="Reset view"
-                    className={`w-8 h-8 flex items-center justify-center rounded-lg border transition-all ${isDark
-                        ? 'border-white/10 bg-gray-900/90 hover:bg-gray-800 text-gray-300'
-                        : 'border-gray-200 bg-white/95 hover:bg-gray-50 text-gray-600'
-                        } shadow-lg backdrop-blur-sm`}
+                    className="w-8 h-8 flex items-center justify-center rounded-lg border transition-all bg-card border-border text-card-foreground hover:bg-accent shadow-lg backdrop-blur-sm"
                     title="Reset view"
                 >
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -595,9 +582,9 @@ const MindMapCanvas = ({
                                             height: ARROW_SIZE,
                                             marginLeft: ARROW_GAP,
                                             borderRadius: 8,
-                                            background: isDark ? 'rgba(45, 55, 72, 0.9)' : 'rgba(241, 245, 249, 0.95)',
-                                            border: isDark ? '1px solid rgba(100, 116, 139, 0.5)' : '1px solid rgba(203, 213, 225, 0.8)',
-                                            color: isDark ? '#94a3b8' : '#64748b',
+                                            background: 'hsl(var(--muted))',
+                                            border: '1px solid hsl(var(--border))',
+                                            color: 'hsl(var(--muted-foreground))',
                                             cursor: 'pointer',
                                             flexShrink: 0,
                                             boxShadow: isDark
@@ -622,6 +609,16 @@ const MindMapCanvas = ({
             </div>
         </div>
     );
+
+    if (isFullscreen && typeof document !== 'undefined') {
+        return createPortal(
+            <div className="fixed inset-0 z-[2147483647] bg-background w-screen h-screen">
+                {canvasContent}
+            </div>,
+            document.body
+        );
+    }
+    return canvasContent;
 };
 
 export default MindMapCanvas;

@@ -248,11 +248,11 @@ async def chat(
             raise HTTPException(status_code=500, detail=str(exc))
     else:
         print(f"[Chat] Query: '{chat_request.message[:100]}...'")
-        print(f"[Chat] Building hybrid context (doc_k=8, chat_k=3)...")
+        print(f"[Chat] Building hybrid context (doc_k=10, chat_k=3)...")
         context_result = hybrid_rag.build_context(
             query=chat_request.message,
             chat_history=chat_history,
-            doc_k=8,
+            doc_k=10,
             chat_k=3,
             recent_messages=8
         )
@@ -437,9 +437,9 @@ async def chat_stream(
 
     # Build context - reduce for local mode
     if conversation.llm_mode == "local":
-        doc_k, chat_k, recent_msgs = 5, 2, 4  # Much smaller context for local
+        doc_k, chat_k, recent_msgs = 10, 2, 4  # Increased from 5 to 10 for local
     else:
-        doc_k, chat_k, recent_msgs = 8, 3, 8
+        doc_k, chat_k, recent_msgs = 10, 3, 8  # Increased from 8 to 10 for cloud
 
     # Capture conversation ID before session closes
     conv_id = conversation.id

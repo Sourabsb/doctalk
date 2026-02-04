@@ -45,3 +45,6 @@ sessions/
 
 # Logs
 *.log
+
+# Local startup guide
+STARTUP.md

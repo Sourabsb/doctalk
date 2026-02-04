@@ -113,10 +113,12 @@ const SignUp = () => {
           <div className="flex-1 p-8 lg:p-12 flex flex-col justify-center">
             {/* Logo and Theme Toggle */}
             <div className="flex items-center justify-between mb-8">
-              <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate('/')}>
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-300 to-amber-500 flex items-center justify-center shadow-lg shadow-amber-500/25">
-                  <span className="text-gray-900 font-bold text-lg">D</span>
-                </div>
+              <div className="flex items-center gap-2.5 cursor-pointer" onClick={() => navigate('/')}>
+                <img 
+                  src="/img/icon.png" 
+                  alt="DocTalk Logo" 
+                  className="w-9 h-9 object-contain"
+                />
                 <span className={`text-xl font-semibold tracking-tight ${theme.text}`}>DocTalk</span>
               </div>
               <button

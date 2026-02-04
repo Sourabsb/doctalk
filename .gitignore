@@ -75,3 +75,9 @@ Thumbs.db
 
 # Session data
 /backend/sessions/
+
+# Local startup guide (contains personal paths and config)
+STARTUP.md
+
+# Progress report
+PROGRESS_REPORT.md

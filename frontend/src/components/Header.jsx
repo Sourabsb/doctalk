@@ -7,19 +7,18 @@ const Header = ({ onNewSession, onDownload, activeConversationId, user, onLogout
     <header className="bg-gray-900 border-b border-gray-800">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
-          <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-blue-500 rounded-lg flex items-center justify-center">
-              <span className="text-white text-lg font-bold">D</span>
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-white">DocTalk</h1>
-              {user && (
-                <p className="text-xs text-gray-400">Signed in as {user.name || user.email}</p>
-              )}
-            </div>
+          <div className="flex items-center gap-2.5">
+            <img 
+              src="/img/icon.png" 
+              alt="DocTalk Logo" 
+              className="w-8 h-8 object-contain"
+            />
+            <h1 className="text-xl font-bold text-white">DocTalk</h1>
           </div>
-
           <div className="flex items-center space-x-3">
+            {user && (
+              <p className="text-xs text-gray-400">Signed in as {user.name || user.email}</p>
+            )}
             {activeConversationId && onDownload && (
               <div className="relative">
                 <button

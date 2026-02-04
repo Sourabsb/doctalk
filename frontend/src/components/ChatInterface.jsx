@@ -12,6 +12,7 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { getConversation, sendMessage, sendMessageStream, uploadFiles, addDocumentsToConversation, editMessage, deleteMessage as deleteMessageApi, deleteDocument, createNote, updateNote, convertNoteToSource, unconvertNoteFromSource, toggleDocument, getFlashcards, generateFlashcards, deleteFlashcard, getMindMap, generateMindMap } from '../utils/api';
 import MindMapCanvas from './MindMapCanvas';
+import { Button } from './ui/button';
 
 // Resizable Panel Component
 const ResizablePanel = ({ children, width, minWidth, maxWidth, onResize, side, isDark, collapsed }) => {
@@ -95,7 +96,7 @@ const InlineCitation = ({ number, source, chunkContent, isDark, onCitationClick 
     <button
       onClick={handleClick}
       className={`inline-flex items-center justify-center min-w-[16px] h-[16px] mx-0.5 text-[10px] font-bold rounded cursor-pointer
-        ${isDark ? 'bg-amber-500/30 text-amber-300 hover:bg-amber-500/50' : 'bg-amber-100 text-amber-700 hover:bg-amber-200'}
+        ${isDark ? 'bg-primary text-white hover:bg-primary/90' : 'bg-primary text-white hover:bg-primary/90'}
         transition-colors`}
       style={{
         verticalAlign: 'middle',
@@ -407,8 +408,8 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
     cardBg: isDark ? 'bg-white/[0.02]' : 'bg-white/50',
     cardBorder: isDark ? 'border-white/5' : 'border-amber-100/30',
     hoverBg: isDark ? 'hover:bg-white/5' : 'hover:bg-amber-50/50',
-    buttonPrimary: isDark ? 'bg-amber-600 hover:bg-amber-500' : 'bg-amber-600 hover:bg-amber-700',
-    userMessage: isDark ? 'bg-amber-600' : 'bg-amber-600',
+    buttonPrimary: 'bg-primary hover:bg-primary/90 text-primary-foreground',
+    userMessage: 'bg-primary text-primary-foreground',
     assistantMessage: isDark ? 'bg-white/[0.03] backdrop-blur-xl' : 'bg-white/80 backdrop-blur-xl',
   };
 
@@ -419,18 +420,19 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
   ];
 
   const scrollToBottom = useCallback(() => {
-    if (!userScrolledUp) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (!userScrolledUp && messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
     }
   }, [userScrolledUp]);
 
   const handleScroll = useCallback(() => {
     if (!messagesContainerRef.current) return;
     const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
-    const isAtBottom = scrollHeight - scrollTop - clientHeight < 50;
+    // Stricter threshold to detect scrolling up sooner
+    const isAtBottom = scrollHeight - scrollTop - clientHeight < 20;
     setUserScrolledUp(!isAtBottom);
-    setShowScrollToBottom(!isAtBottom && isStreaming);
-  }, [isStreaming]);
+    setShowScrollToBottom(!isAtBottom);
+  }, []);
 
   const handleScrollToBottom = () => {
     setUserScrolledUp(false);
@@ -2021,33 +2023,36 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
     <div className={`flex h-full p-2 gap-2 ${theme.bg}`} style={{ overflow: 'visible' }}>
       {/* Left Panel Collapsed Bar */}
       {leftPanelCollapsed && (
-        <div className={`relative z-[60] flex flex-col items-center py-3 px-1.5 ${theme.panelBg} rounded-2xl`}>
+        <div className={`relative z-[60] flex flex-col items-center py-4 px-2 ${theme.panelBg} rounded-2xl shadow-lg transition-all duration-300`}>
           <Tooltip text="Expand sources" side="right">
             <button
               onClick={() => setLeftPanelCollapsed(false)}
-              className={`p-2 rounded-xl transition-all ${theme.hoverBg} ${theme.textSecondary} mb-2`}
+              className={`p-2.5 rounded-xl transition-all duration-200 ${theme.hoverBg} ${theme.textSecondary} mb-3 hover:scale-110 active:scale-95`}
             >
-              <PanelLeft size={18} strokeWidth={2} />
+              <PanelLeft size={20} strokeWidth={2} />
             </button>
           </Tooltip>
 
-          <div className={`w-6 h-px ${isDark ? 'bg-gray-700' : 'bg-gray-200'} my-2`} />
+          <div className={`w-8 h-px ${isDark ? 'bg-gradient-to-r from-transparent via-gray-600 to-transparent' : 'bg-gradient-to-r from-transparent via-gray-300 to-transparent'} my-2`} />
 
           <Tooltip text="Add source" side="right">
             <button
               onClick={() => fileInputRef.current?.click()}
-              className={`p-2 rounded-lg transition-all ${theme.hoverBg} ${theme.textSecondary} mb-1`}
+              className={`p-2.5 rounded-xl transition-all duration-200 ${theme.hoverBg} ${theme.textSecondary} mb-2 hover:scale-110 active:scale-95 hover:text-primary`}
             >
-              <Plus size={18} strokeWidth={2} />
+              <Plus size={20} strokeWidth={2} />
             </button>
           </Tooltip>
 
           {documents.length > 0 && (
             <>
-              <div className={`w-6 h-px ${isDark ? 'bg-gray-700' : 'bg-gray-200'} my-2`} />
+              <div className={`w-8 h-px ${isDark ? 'bg-gradient-to-r from-transparent via-gray-600 to-transparent' : 'bg-gradient-to-r from-transparent via-gray-300 to-transparent'} my-2`} />
               <Tooltip text={`${documents.length} source${documents.length > 1 ? 's' : ''}`} side="right">
-                <div className={`p-2 rounded-lg ${theme.textSecondary}`}>
-                  <FileText size={18} strokeWidth={2} className="text-amber-500" />
+                <div className={`relative p-2.5 rounded-xl ${isDark ? 'bg-primary/10' : 'bg-primary/5'} transition-all duration-200 hover:scale-110`}>
+                  <FileText size={20} strokeWidth={2} className="text-primary" />
+                  <span className={`absolute -top-1 -right-1 min-w-[18px] h-[18px] flex items-center justify-center text-[10px] font-bold rounded-full ${isDark ? 'bg-primary text-white' : 'bg-primary text-white'} shadow-lg`}>
+                    {documents.length}
+                  </span>
                 </div>
               </Tooltip>
             </>
@@ -2068,7 +2073,7 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
         isDark={isDark}
         collapsed={leftPanelCollapsed || mindMapCanvasMode}
       >
-        <div className={`h-full flex flex-col ${theme.panelBg} backdrop-blur-xl rounded-2xl`}>
+        <div className={`h-full flex flex-col ${isDark ? 'bg-[#1a1a1a]/95' : 'bg-white/95'} border ${isDark ? 'border-white/10' : 'border-gray-200'} backdrop-blur-xl rounded-2xl`}>
           {sourcePreview ? (
             /* Source Document Preview - Overlaps the Sources panel like notes editor */
             <>
@@ -2081,8 +2086,8 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                   >
                     <ChevronLeft size={18} strokeWidth={2} />
                   </button>
-                  <div className={`p-1.5 rounded ${isDark ? 'bg-blue-500/20' : 'bg-blue-100'}`}>
-                    <FileText size={16} className={isDark ? 'text-blue-400' : 'text-blue-600'} strokeWidth={2} />
+                  <div className={`p-1.5 rounded bg-primary/10`}>
+                    <FileText size={16} className="text-primary" strokeWidth={2} />
                   </div>
                   <div className="min-w-0">
                     <p className={`text-sm font-semibold truncate ${theme.text}`}>
@@ -2099,16 +2104,16 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
               </div>
 
               {/* Source Content - Full document with highlighted chunk */}
-              <div className={`flex-1 overflow-y-auto p-4 ${theme.text}`} id="source-content-container">
+              <div className={`flex-1 overflow-y-auto p-4 ${isDark ? 'text-gray-100' : 'text-gray-900'}`} id="source-content-container">
                 {sourcePreview.content ? (
-                  <div className="prose prose-sm max-w-none">
-                    <div className="whitespace-pre-wrap text-sm leading-relaxed">
+                  <div className={`prose prose-sm max-w-none ${isDark ? 'prose-invert' : ''}`}>
+                    <div className={`whitespace-pre-wrap text-sm leading-relaxed ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>
                       {(() => {
                         const content = sourcePreview.content;
 
                         // If no highlight needed, show full content
                         if (!sourceHighlight) {
-                          return <pre className="whitespace-pre-wrap text-sm leading-relaxed">{content}</pre>;
+                          return <pre className={`whitespace-pre-wrap text-sm leading-relaxed font-sans ${isDark ? 'text-gray-100' : 'text-gray-900'} bg-transparent`}>{content}</pre>;
                         }
 
                         // Find the chunk to highlight
@@ -2129,7 +2134,7 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
 
                         // If still not found, just show full content
                         if (highlightIndex === -1) {
-                          return <pre className="whitespace-pre-wrap text-sm leading-relaxed">{content}</pre>;
+                          return <pre className={`whitespace-pre-wrap text-sm leading-relaxed font-sans ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{content}</pre>;
                         }
 
                         // Calculate highlight range (show the relevant chunk fully)
@@ -2151,7 +2156,7 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                             {/* Highlighted chunk */}
                             <mark
                               id="highlight-section"
-                              className={`${isDark ? 'bg-yellow-500/40 text-yellow-100' : 'bg-yellow-200 text-yellow-900'} px-1 py-0.5 rounded`}
+                              className="bg-yellow-500/30 text-current px-1 py-0.5 rounded border-b-2 border-yellow-500/50"
                             >
                               {content.substring(highlightIndex, highlightEnd)}
                             </mark>
@@ -2178,19 +2183,29 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
             /* Normal Sources List View */
             <>
               {/* Sources Header */}
-              <div className={`flex items-center justify-between px-4 py-3 border-b ${theme.panelBorder}`}>
-                <h2 className={`text-sm font-semibold tracking-wide uppercase ${theme.textSecondary}`}>Sources</h2>
+              <div className={`flex items-center justify-between px-5 py-4 border-b ${theme.panelBorder} backdrop-blur-sm`}>
+                <div className="flex items-center gap-2.5">
+                  <div className={`p-1.5 rounded-lg ${isDark ? 'bg-primary/10' : 'bg-primary/10'}`}>
+                    <FileText size={16} strokeWidth={2} className="text-primary" />
+                  </div>
+                  <h2 className={`text-sm font-semibold tracking-wide uppercase ${theme.textSecondary}`}>Sources</h2>
+                  {documents.length > 0 && (
+                    <span className={`ml-1 px-2 py-0.5 text-[10px] font-bold rounded-full ${isDark ? 'bg-primary/20 text-primary' : 'bg-primary/20 text-primary'}`}>
+                      {documents.length}
+                    </span>
+                  )}
+                </div>
                 <div className="flex items-center gap-1">
                   <button
                     onClick={() => fileInputRef.current?.click()}
-                    className={`p-1.5 rounded-xl transition-all ${theme.hoverBg} ${theme.textSecondary}`}
+                    className={`p-2 rounded-xl transition-all duration-200 ${theme.hoverBg} ${theme.textSecondary} hover:text-primary hover:scale-105 active:scale-95`}
                     title="Add source"
                   >
                     <Plus size={16} strokeWidth={2} />
                   </button>
                   <button
                     onClick={() => setLeftPanelCollapsed(true)}
-                    className={`p-1.5 rounded-xl transition-all ${theme.hoverBg} ${theme.textSecondary}`}
+                    className={`p-2 rounded-xl transition-all duration-200 ${theme.hoverBg} ${theme.textSecondary} hover:scale-105 active:scale-95`}
                     title="Collapse sources"
                   >
                     <PanelLeft size={16} strokeWidth={2} />
@@ -2199,26 +2214,31 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
               </div>
 
               {/* Add Sources Button */}
-              <div className="p-3">
+              <div className="p-4">
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className={`w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg border border-dashed
-                ${isDark ? 'border-gray-700 hover:border-gray-600 hover:bg-gray-800/50' : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50'}
-                ${theme.textSecondary} transition-all text-sm`}
+                  className={`group w-full flex items-center justify-center gap-2.5 py-3 px-4 rounded-xl border-2 border-dashed
+                ${isDark ? 'border-gray-700 hover:border-primary/50 hover:bg-primary/5' : 'border-gray-300 hover:border-primary/50 hover:bg-primary/5'}
+                ${theme.textSecondary} hover:text-primary transition-all duration-200 text-sm font-medium hover:scale-[1.02] active:scale-[0.98]`}
                 >
-                  <Upload size={16} strokeWidth={2} />
+                  <Upload size={18} strokeWidth={2} className="group-hover:animate-bounce" />
                   <span>Add sources</span>
                 </button>
               </div>
 
               {/* Documents List */}
-              <div className="flex-1 overflow-y-auto p-3 mt-2">
-                <div className="space-y-1.5">
+              <div className="flex-1 overflow-y-auto px-4 pb-4">
+                <div className="space-y-2">
                   {documents.length > 0 ? (
                     documents.map((doc, index) => (
                       <div
                         key={doc.id || index}
-                        className={`group flex items-center gap-2.5 p-2.5 rounded-lg ${theme.cardBg} border ${theme.cardBorder} transition-all hover:border-blue-500/30 cursor-pointer ${sourcePreview?.id === doc.id ? 'ring-2 ring-blue-500 border-blue-500/30' : ''} ${doc.is_active === false ? 'opacity-50' : ''}`}
+                        className={`group relative flex items-center gap-3 p-3 rounded-xl border transition-all duration-200 cursor-pointer
+                          ${sourcePreview?.id === doc.id
+                            ? `ring-2 ring-primary ${isDark ? 'bg-primary/5 border-primary/30' : 'bg-primary/5 border-primary/30'}`
+                            : `${theme.cardBg} ${theme.cardBorder} hover:border-primary/30 hover:shadow-md`}
+                          ${doc.is_active === false ? 'opacity-60' : ''}
+                          hover:scale-[1.01] active:scale-[0.99]`}
                         onClick={() => { setSourcePreview(doc); setSourceHighlight(null); }}
                       >
                         {/* Checkbox for active/inactive */}
@@ -2228,39 +2248,54 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                             handleToggleDocument(doc.id, doc.is_active !== false);
                           }}
                           disabled={doc.isProcessing || processingDocIds.includes(doc.id)}
-                          className={`flex-shrink-0 w-4 h-4 rounded border-2 flex items-center justify-center transition-all ${doc.is_active !== false
-                            ? 'bg-amber-500 border-amber-500'
-                            : isDark ? 'border-gray-600 bg-transparent' : 'border-gray-300 bg-transparent'
-                            } ${doc.isProcessing || processingDocIds.includes(doc.id) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                          className={`flex-shrink-0 w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all duration-200
+                            ${doc.is_active !== false
+                              ? 'bg-primary border-primary shadow-sm'
+                              : isDark ? 'border-gray-600 bg-transparent hover:border-gray-500' : 'border-gray-300 bg-transparent hover:border-gray-400'}
+                            ${doc.isProcessing || processingDocIds.includes(doc.id) ? 'opacity-50 cursor-not-allowed' : 'hover:scale-110'}`}
                           title={doc.is_active !== false ? 'Disable for queries' : 'Enable for queries'}
                         >
                           {doc.is_active !== false && (
-                            <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                             </svg>
                           )}
                         </button>
-                        <div className={`p-1.5 rounded ${doc.doc_type === 'note' ? (isDark ? 'bg-amber-500/20' : 'bg-amber-100') : (isDark ? 'bg-blue-500/20' : 'bg-blue-100')} relative`}>
+                        <div className={`p-2 rounded-lg ${isDark ? 'bg-primary/10' : 'bg-primary/10'} relative transition-transform group-hover:scale-105`}>
                           {doc.isProcessing || processingDocIds.includes(doc.id) ? (
-                            <Loader2 size={14} className={`${isDark ? 'text-amber-400' : 'text-amber-600'} animate-spin`} strokeWidth={2} />
+                            <Loader2 size={16} className={`text-primary animate-spin`} strokeWidth={2} />
                           ) : doc.doc_type === 'note' ? (
-                            <StickyNote size={14} className={isDark ? 'text-amber-400' : 'text-amber-600'} strokeWidth={2} />
+                            <StickyNote size={16} className={'text-primary'} strokeWidth={2} />
                           ) : (
-                            <FileText size={14} className={isDark ? 'text-blue-400' : 'text-blue-600'} strokeWidth={2} />
+                            <FileText size={16} className={'text-primary'} strokeWidth={2} />
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className={`text-sm font-medium truncate ${theme.text}`}>
+                          <p className={`text-sm font-semibold truncate ${theme.text} group-hover:text-primary transition-colors`}>
                             {doc.filename || doc.original_filename || doc.name || doc.file_name || 'Document'}
                           </p>
-                          <p className={`text-xs ${theme.textMuted}`}>
-                            {doc.isProcessing || processingDocIds.includes(doc.id)
-                              ? 'Converting...'
-                              : doc.is_active === false
-                                ? 'Disabled'
-                                : doc.doc_type === 'note'
-                                  ? 'From notes'
-                                  : (doc.page_count ? `${doc.page_count} pages` : (doc.file_size ? `${Math.round(doc.file_size / 1024)} KB` : ''))}
+                          <p className={`text-xs ${theme.textMuted} flex items-center gap-1 mt-0.5`}>
+                            {doc.isProcessing || processingDocIds.includes(doc.id) ? (
+                              <>
+                                <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                                Converting...
+                              </>
+                            ) : doc.is_active === false ? (
+                              <>
+                                <span className="inline-block w-1.5 h-1.5 rounded-full bg-gray-400" />
+                                Disabled
+                              </>
+                            ) : doc.doc_type === 'note' ? (
+                              <>
+                                <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500" />
+                                From notes
+                              </>
+                            ) : (
+                              <>
+                                <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-500" />
+                                {doc.page_count ? `${doc.page_count} pages` : (doc.file_size ? `${Math.round(doc.file_size / 1024)} KB` : 'Document')}
+                              </>
+                            )}
                           </p>
                         </div>
                         <button
@@ -2268,20 +2303,27 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                             e.stopPropagation();
                             setShowDeleteSourceConfirm(index);
                           }}
-                          className={`p-1 rounded-md opacity-0 group-hover:opacity-100 transition-all ${theme.hoverBg}`}
+                          className={`flex-shrink-0 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-200 ${isDark ? 'hover:bg-red-500/20 text-red-400' : 'hover:bg-red-50 text-red-500'} hover:scale-110`}
                           title="Remove source"
                         >
-                          <X size={14} className={theme.textMuted} strokeWidth={2} />
+                          <X size={16} strokeWidth={2} />
                         </button>
                       </div>
                     ))
                   ) : (
-                    <div className={`text-center py-10 ${theme.textMuted}`}>
-                      <div className={`mx-auto w-12 h-12 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-gray-100'} flex items-center justify-center mb-3`}>
-                        <FileText size={24} className="opacity-40" />
+                    <div className={`text-center py-12 px-4 ${theme.textMuted}`}>
+                      <div className={`mx-auto w-16 h-16 rounded-2xl ${isDark ? 'bg-gradient-to-br from-gray-800 to-gray-900' : 'bg-gradient-to-br from-gray-50 to-gray-100'} flex items-center justify-center mb-4 shadow-inner`}>
+                        <FileText size={28} className="opacity-30" strokeWidth={1.5} />
                       </div>
-                      <p className="text-sm font-medium">No sources added</p>
-                      <p className="text-xs mt-1 opacity-70">Upload documents to get started</p>
+                      <p className="text-sm font-semibold mb-1">No sources added</p>
+                      <p className="text-xs opacity-70 mb-4">Upload documents to get started</p>
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium ${isDark ? 'bg-primary/10 text-primary hover:bg-primary/20' : 'bg-primary/10 text-primary hover:bg-primary/20'} transition-all hover:scale-105`}
+                      >
+                        <Plus size={14} strokeWidth={2} />
+                        Add your first source
+                      </button>
                     </div>
                   )}
                 </div>
@@ -2294,7 +2336,7 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                   <div className="space-y-2">
                     {selectedFiles.map((file, index) => (
                       <div key={index} className={`flex items-center gap-2 p-2 rounded-lg ${theme.cardBg}`}>
-                        <File size={14} className="text-amber-500" />
+                        <File size={14} className="text-primary" />
                         <span className={`text-xs truncate flex-1 ${theme.text}`}>{file.name}</span>
                         <button
                           onClick={() => removeSelectedFile(index)}
@@ -2347,14 +2389,14 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
 
       {/* Middle Panel - Chat */}
       <div
-        className={`flex-1 flex flex-col min-w-0 relative z-10 ${theme.panelBg} rounded-2xl overflow-visible`}
+        className={`flex-1 flex flex-col min-w-0 relative z-10 ${theme.panelBg} rounded-2xl overflow-hidden`}
         style={{ display: mindMapCanvasMode ? 'none' : 'flex' }}
       >
         {/* Chat Header */}
         <div className={`relative z-30 flex items-center justify-between px-5 py-3 border-b ${theme.panelBorder} backdrop-blur-xl`}>
           <div className="flex items-center gap-2.5">
-            <div className={`p-1.5 rounded-xl ${isDark ? 'bg-amber-500/20' : 'bg-amber-100'}`}>
-              <MessageSquare size={16} className="text-amber-600" strokeWidth={2} />
+            <div className={`p-1.5 rounded-xl bg-primary/10`}>
+              <MessageSquare size={16} className="text-primary" strokeWidth={2} />
             </div>
             {isEditingTitle ? (
               <input
@@ -2468,13 +2510,13 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
           ref={messagesContainerRef}
           onScroll={handleScroll}
           className="flex-1 overflow-y-auto px-4 py-6 relative z-10"
-          style={{ overflowX: 'visible' }}
+          style={{ overflowX: 'visible', overflowAnchor: 'none' }}
         >
           {
             messages.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center">
-                <div className={`w-14 h-14 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center mb-5 shadow-lg ${isDark ? 'shadow-amber-500/20' : 'shadow-amber-500/30'}`}>
-                  <Sparkles size={26} className="text-white" strokeWidth={2} />
+                <div className={`w-14 h-14 rounded-xl bg-primary flex items-center justify-center mb-5 shadow-lg ${isDark ? 'shadow-primary/20' : 'shadow-primary/30'}`}>
+                  <Sparkles size={26} className="text-primary-foreground" strokeWidth={2} />
                 </div>
                 <h2 className={`text-lg font-semibold mb-2 ${theme.text}`}>How can I help you today?</h2>
                 <p className={`text-center max-w-sm text-sm ${theme.textMuted}`}>
@@ -2654,42 +2696,46 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
             )
           }
 
-          {
-            showScrollToBottom && (
-              <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-10">
-                <button
-                  onClick={handleScrollToBottom}
-                  className={`p-2 rounded-full shadow-lg transition-all hover:scale-110
-                  ${isDark ? 'bg-white/10 hover:bg-white/20 border border-white/20' : 'bg-white hover:bg-gray-50 border border-gray-200'}
-                  backdrop-blur-xl`}
-                  title="Scroll to bottom"
-                >
-                  <ChevronDown size={20} className={theme.text} strokeWidth={2} />
-                </button>
-              </div>
-            )
-          }
         </div >
+        {
+          showScrollToBottom && (
+            <div className="absolute bottom-32 left-1/2 transform -translate-x-1/2 z-40">
+              <Button
+                onClick={handleScrollToBottom}
+                size="icon"
+                className={`rounded-full w-9 h-9 shadow-lg ${isDark ? 'bg-white/10 hover:bg-white/20 border border-white/20' : 'bg-white hover:bg-gray-50 border border-gray-200'}`}
+                title="Scroll to bottom"
+              >
+                <ChevronDown size={16} strokeWidth={2.5} className={isDark ? 'text-white' : 'text-gray-700'} />
+              </Button>
+            </div>
+          )
+        }
 
         {/* Input Area - Grid Layout for Adaptive Compact/Expanded State */}
-        < div className="px-4 py-3 relative z-50" >
+        < div className="px-4 py-4 relative z-50" >
           <div className="max-w-3xl mx-auto">
             <div
-              className={`grid gap-x-2 gap-y-2 items-end rounded-3xl border transition-all duration-200 ease-in-out ${isDark ? 'bg-white/[0.03] border-white/10 backdrop-blur-xl' : 'bg-white/70 border-amber-100/50 backdrop-blur-xl'
+              className={`grid gap-x-2 gap-y-2 items-end rounded-3xl border-2 shadow-xl transition-all duration-200 ease-in-out ${isDark
+                  ? 'bg-[#1a1a1a]/95 border-white/20 backdrop-blur-xl shadow-black/20'
+                  : 'bg-white/95 border-gray-200 backdrop-blur-xl shadow-gray-900/10'
                 }`}
               style={{
                 gridTemplateColumns: 'auto 1fr auto',
                 gridTemplateAreas: isExpanded
                   ? '"input input input" "left . right"'
                   : '"left input right"',
-                padding: '0.5rem 0.75rem' // py-2 px-3 equivalent
+                padding: '0.75rem 1rem' // py-3 px-4 equivalent
               }}
             >
               {/* Left Actions Group */}
               <div style={{ gridArea: 'left' }} className="flex items-end gap-2 self-end">
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className={`p-2 rounded-full transition-all shrink-0 ${theme.hoverBg} ${theme.textMuted}`}
+                  className={`p-2.5 rounded-xl transition-all shrink-0 ${isDark
+                      ? 'hover:bg-white/10 text-gray-300 hover:text-white'
+                      : 'hover:bg-gray-100 text-gray-600 hover:text-gray-900'
+                    } hover:scale-105 active:scale-95`}
                   title="Attach file"
                 >
                   <Plus size={20} strokeWidth={2} />
@@ -2703,25 +2749,28 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                 onChange={(e) => setInputMessage(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Ask about your documents..."
-                className={`w-full resize-none bg-transparent outline-none py-2 px-2 overflow-y-auto text-sm leading-5 ${theme.text} placeholder:${isDark ? 'text-gray-500' : 'text-gray-400'}`}
+                className={`w-full resize-none bg-transparent outline-none py-2 px-3 overflow-y-auto text-sm leading-6 ${isDark ? 'text-gray-100 placeholder:text-gray-500' : 'text-gray-900 placeholder:text-gray-400'
+                  }`}
                 rows={1}
-                disabled={isLoading}
+                disabled={false}
                 style={{
                   gridArea: 'input',
-                  minHeight: '36px',
+                  minHeight: '40px',
                   maxHeight: '200px',
                   fieldSizing: 'content'  // Modern CSS auto-grow (Chrome 123+, Firefox 128+)
                 }}
               />
 
               {/* Right Actions Group */}
-              <div style={{ gridArea: 'right' }} className="flex items-end gap-1 self-end">
+              <div style={{ gridArea: 'right' }} className="flex items-end gap-1.5 self-end">
                 <button
                   onClick={handleVoiceInput}
-                  className={`p-2 rounded-full transition-all shrink-0 ${isRecording
-                    ? 'animate-breathing ' + (isDark ? 'bg-red-500 text-white' : 'bg-red-600 text-white')
-                    : theme.hoverBg + ' ' + theme.textMuted
-                    }`}
+                  className={`p-2.5 rounded-xl transition-all shrink-0 ${isRecording
+                      ? 'animate-breathing ' + (isDark ? 'bg-red-500 text-white' : 'bg-red-600 text-white')
+                      : isDark
+                        ? 'hover:bg-white/10 text-gray-300 hover:text-white'
+                        : 'hover:bg-gray-100 text-gray-600 hover:text-gray-900'
+                    } hover:scale-105 active:scale-95`}
                   title={isRecording ? 'Stop recording' : 'Start voice input'}
                 >
                   <Mic size={20} strokeWidth={2} />
@@ -2729,7 +2778,8 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                 {isStreaming ? (
                   <button
                     onClick={handleStop}
-                    className={`p-2 rounded-full transition-all shrink-0 ${isDark ? 'bg-red-500 text-white hover:bg-red-400' : 'bg-red-600 text-white hover:bg-red-700'}`}
+                    className={`p-2.5 rounded-xl transition-all shrink-0 ${isDark ? 'bg-red-500 text-white hover:bg-red-400' : 'bg-red-600 text-white hover:bg-red-700'
+                      } hover:scale-105 active:scale-95 shadow-lg`}
                     title="Stop generating"
                   >
                     <Square size={20} strokeWidth={2} fill="currentColor" />
@@ -2738,17 +2788,15 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                   <button
                     onClick={handleSubmit}
                     disabled={isLoading || (!inputMessage.trim() && selectedFiles.length === 0)}
-                    className={`p-2 rounded-full transition-all shrink-0 ${isDark ? 'bg-amber-500 text-white hover:bg-amber-400' : 'bg-amber-600 text-white hover:bg-amber-700'}
-                      disabled:opacity-50 disabled:cursor-not-allowed`}
+                    className={`p-2.5 rounded-xl transition-all shrink-0 ${theme.buttonPrimary}
+                      disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 active:scale-95 shadow-lg`}
                   >
                     <Send size={20} strokeWidth={2} />
                   </button>
                 )}
               </div>
             </div>
-            <p className={`text-xs text-center mt-2 ${theme.textMuted} opacity-70`}>
-              DocTalk may make mistakes. Please verify important information.
-            </p>
+
           </div>
         </div >
       </div >
@@ -2756,34 +2804,48 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
       {/* Right Panel Collapsed Bar */}
       {
         rightPanelCollapsed && (
-          <div className={`relative z-[60] flex flex-col items-center py-3 px-1.5 ${theme.panelBg} rounded-2xl`}>
+          <div className={`relative z-[60] flex flex-col items-center py-4 px-2 ${theme.panelBg} rounded-2xl shadow-lg transition-all duration-300`}>
             <Tooltip text="Expand studio" side="left">
               <button
                 onClick={() => setRightPanelCollapsed(false)}
-                className={`p-2 rounded-xl transition-all ${theme.hoverBg} ${theme.textSecondary} mb-2`}
+                className={`p-2.5 rounded-xl transition-all duration-200 ${theme.hoverBg} ${theme.textSecondary} mb-3 hover:scale-110 active:scale-95`}
               >
-                <PanelRight size={18} strokeWidth={2} />
+                <PanelRight size={20} strokeWidth={2} />
               </button>
             </Tooltip>
 
-            <div className={`w-6 h-px ${isDark ? 'bg-gray-700' : 'bg-gray-200'} my-2`} />
+            <div className={`w-8 h-px ${isDark ? 'bg-gradient-to-r from-transparent via-gray-600 to-transparent' : 'bg-gradient-to-r from-transparent via-gray-300 to-transparent'} my-2`} />
 
             {studioTools.map((tool, index) => (
               <Tooltip key={index} text={tool.label} side="left">
-                <button className={`p-2 rounded-xl transition-all ${theme.hoverBg} mb-1`}>
-                  <tool.icon size={18} strokeWidth={1.5} className={tool.color} />
+                <button
+                  onClick={() => handleStudioToolClick(tool.label)}
+                  className={`relative p-2.5 rounded-xl transition-all duration-200 ${theme.hoverBg} mb-2 hover:scale-110 active:scale-95`}
+                >
+                  <tool.icon size={20} strokeWidth={2} className={tool.color} />
+                  {tool.label === 'Flashcards' && flashcards.length > 0 && (
+                    <span className="absolute -top-1 -right-1 w-2 h-2 bg-pink-500 rounded-full animate-pulse" />
+                  )}
+                  {tool.label === 'Mind Map' && mindMapData && (
+                    <span className="absolute -top-1 -right-1 w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+                  )}
                 </button>
               </Tooltip>
             ))}
 
-            <div className={`w-6 h-px ${isDark ? 'bg-gray-700' : 'bg-gray-200'} my-2`} />
+            <div className={`w-8 h-px ${isDark ? 'bg-gradient-to-r from-transparent via-gray-600 to-transparent' : 'bg-gradient-to-r from-transparent via-gray-300 to-transparent'} my-2`} />
 
             <Tooltip text="Notes" side="left">
               <button
                 onClick={() => { setRightPanelCollapsed(false); setShowNoteInput(true); }}
-                className={`p-2 rounded-xl transition-all ${theme.hoverBg} ${theme.textSecondary} mb-1`}
+                className={`relative p-2.5 rounded-xl transition-all duration-200 ${theme.hoverBg} ${theme.textSecondary} mb-2 hover:scale-110 active:scale-95 hover:text-primary`}
               >
-                <StickyNote size={18} strokeWidth={2} />
+                <StickyNote size={20} strokeWidth={2} />
+                {notes.length > 0 && (
+                  <span className={`absolute -top-1 -right-1 min-w-[16px] h-[16px] flex items-center justify-center text-[9px] font-bold rounded-full ${isDark ? 'bg-amber-500 text-white' : 'bg-amber-500 text-white'} shadow-lg`}>
+                    {notes.length}
+                  </span>
+                )}
               </button>
             </Tooltip>
           </div>
@@ -3091,40 +3153,55 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
             <>
               {/* Studio Header - hide in fullscreen mode */}
               <div
-                className={`flex items-center justify-between px-4 py-3 border-b ${theme.panelBorder} flex-shrink-0`}
+                className={`flex items-center justify-between px-5 py-4 border-b ${theme.panelBorder} backdrop-blur-sm flex-shrink-0`}
                 style={{ display: mindMapCanvasMode ? 'none' : 'flex', position: 'relative', zIndex: 100 }}
                 onMouseDown={(e) => e.stopPropagation()}
                 onClick={(e) => e.stopPropagation()}
               >
                 {showMindMap ? (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2.5">
                     <button
                       onClick={handleCloseMindMap}
-                      className={`text-sm font-semibold tracking-wide uppercase ${theme.textSecondary} hover:text-amber-500 transition-colors`}
+                      className={`text-sm font-semibold tracking-wide uppercase ${theme.textSecondary} hover:text-primary transition-colors duration-200`}
                     >
                       Studio
                     </button>
                     <ChevronRight size={14} className={theme.textMuted} />
-                    <span className={`text-sm font-semibold ${theme.text}`}>Mindmap</span>
+                    <div className="flex items-center gap-2">
+                      <div className={`p-1.5 rounded-lg ${isDark ? 'bg-emerald-500/10' : 'bg-emerald-500/10'}`}>
+                        <Brain size={14} strokeWidth={2} className={isDark ? 'text-emerald-400' : 'text-emerald-600'} />
+                      </div>
+                      <span className={`text-sm font-semibold ${theme.text}`}>Mindmap</span>
+                    </div>
                   </div>
                 ) : showFlashcards ? (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2.5">
                     <button
                       onClick={handleCloseFlashcards}
-                      className={`text-sm font-semibold tracking-wide uppercase ${theme.textSecondary} hover:text-amber-500 transition-colors`}
+                      className={`text-sm font-semibold tracking-wide uppercase ${theme.textSecondary} hover:text-primary transition-colors duration-200`}
                     >
                       Studio
                     </button>
                     <ChevronRight size={14} className={theme.textMuted} />
-                    <span className={`text-sm font-semibold ${theme.text}`}>Flashcards</span>
-                    {flashcards.length > 0 && (
-                      <span className={`text-xs px-1.5 py-0.5 rounded ${isDark ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-100 text-amber-700'}`}>
-                        {flashcards.length}
-                      </span>
-                    )}
+                    <div className="flex items-center gap-2">
+                      <div className={`p-1.5 rounded-lg ${isDark ? 'bg-pink-500/10' : 'bg-pink-500/10'}`}>
+                        <BookOpen size={14} strokeWidth={2} className={isDark ? 'text-pink-400' : 'text-pink-600'} />
+                      </div>
+                      <span className={`text-sm font-semibold ${theme.text}`}>Flashcards</span>
+                      {flashcards.length > 0 && (
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${isDark ? 'bg-pink-500/20 text-pink-400' : 'bg-pink-100 text-pink-600'}`}>
+                          {flashcards.length}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 ) : (
-                  <h2 className={`text-sm font-semibold tracking-wide uppercase ${theme.textSecondary}`}>Studio</h2>
+                  <div className="flex items-center gap-2.5">
+                    <div className={`p-1.5 rounded-lg ${isDark ? 'bg-primary/10' : 'bg-primary/10'}`}>
+                      <Sparkles size={16} strokeWidth={2} className="text-primary" />
+                    </div>
+                    <h2 className={`text-sm font-semibold tracking-wide uppercase ${theme.textSecondary}`}>Studio</h2>
+                  </div>
                 )}
                 <div className="flex items-center gap-1">
                   {showMindMap && (
@@ -3278,14 +3355,13 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                           {/* Centered Card with depth and polish */}
                           <div
                             className={`w-full max-w-[280px] min-h-[220px] rounded-2xl p-5 flex flex-col justify-between relative transition-all duration-300 ${isDark
-                              ? 'bg-gradient-to-br from-gray-800 via-gray-800/95 to-gray-900'
-                              : 'bg-gradient-to-br from-white via-gray-50 to-gray-100'
+                              ? 'bg-card border border-border shadow-2xl shadow-black/20'
+                              : 'bg-card border border-border shadow-xl shadow-amber-500/5'
                               }`}
                             style={{
                               boxShadow: isDark
-                                ? '0 8px 32px rgba(0,0,0,0.4), 0 2px 8px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.05)'
-                                : '0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.8)',
-                              border: isDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(0,0,0,0.08)'
+                                ? 'var(--shadow-xl)'
+                                : 'var(--shadow-lg)',
                             }}
                           >
                             {/* Delete Button */}
@@ -3336,8 +3412,7 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                           {showAnswer && (
                             <button
                               onClick={() => handleExplainCard(flashcards[currentCardIndex]?.front)}
-                              className={`w-full py-2 px-4 rounded-lg text-sm font-medium flex items-center justify-center gap-2 ${isDark ? 'bg-amber-500/20 text-amber-400 hover:bg-amber-500/30' : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
-                                }`}
+                              className={`w-full py-2 px-4 rounded-lg text-sm font-medium flex items-center justify-center gap-2 bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors`}
                             >
                               <MessageSquare size={14} />
                               Explain this
@@ -3346,9 +3421,9 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
 
                           {/* Generating indicator - simpler version */}
                           {flashcardsGenerating && (
-                            <div className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg ${isDark ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-amber-50 border border-amber-200'}`}>
-                              <Loader2 size={14} className={`animate-spin ${isDark ? 'text-amber-400' : 'text-amber-600'}`} strokeWidth={2.5} />
-                              <span className={`text-xs font-medium ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>
+                            <div className="flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-muted/50 border border-border">
+                              <Loader2 size={14} className="animate-spin text-muted-foreground" strokeWidth={2.5} />
+                              <span className="text-xs font-medium text-muted-foreground">
                                 Generating more...
                               </span>
                             </div>
@@ -3439,9 +3514,19 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                     </div>
 
                     {/* Notes Section */}
-                    <div className="mt-5">
-                      <div className="flex items-center justify-between mb-2">
-                        <h3 className={`text-xs font-semibold tracking-wide uppercase ${theme.textSecondary}`}>Notes</h3>
+                    <div className="mt-6">
+                      <div className="flex items-center justify-between mb-3 px-1">
+                        <div className="flex items-center gap-2">
+                          <div className={`p-1 rounded-md ${isDark ? 'bg-amber-500/10' : 'bg-amber-500/10'}`}>
+                            <StickyNote size={14} strokeWidth={2} className="text-amber-500" />
+                          </div>
+                          <h3 className={`text-xs font-semibold tracking-wide uppercase ${theme.textSecondary}`}>Notes</h3>
+                          {notes.length > 0 && (
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${isDark ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-100 text-amber-600'}`}>
+                              {notes.length}
+                            </span>
+                          )}
+                        </div>
                         <button
                           onClick={() => {
                             setShowNoteInput(true);
@@ -3449,14 +3534,14 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                             setNoteContent('');
                             setEditingNoteId(null);
                           }}
-                          className={`p-1 rounded-md transition-all ${theme.hoverBg} ${theme.textMuted}`}
+                          className={`p-1.5 rounded-lg transition-all duration-200 ${theme.hoverBg} ${theme.textMuted} hover:text-primary hover:scale-110`}
                         >
-                          <Plus size={14} strokeWidth={2} />
+                          <Plus size={16} strokeWidth={2} />
                         </button>
                       </div>
 
                       {/* Notes List */}
-                      <div className="space-y-1.5">
+                      <div className="space-y-2">
                         {notes.length > 0 ? (
                           notes.map((note) => (
                             <div
@@ -3469,10 +3554,11 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                                   setShowNoteInput(true);
                                 }
                               }}
-                              className={`group relative p-3 rounded-lg border ${theme.cardBorder} ${theme.cardBg} cursor-pointer hover:border-amber-500/30 transition-all`}
+                              className={`group relative p-3.5 rounded-xl border transition-all duration-200 cursor-pointer
+                                ${theme.cardBg} ${theme.cardBorder} hover:border-amber-500/40 hover:shadow-md hover:scale-[1.01] active:scale-[0.99]`}
                             >
                               {/* Three dots menu button */}
-                              <div className="absolute top-2 right-2" data-note-menu>
+                              <div className="absolute top-2.5 right-2.5" data-note-menu>
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
@@ -3532,19 +3618,26 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                             </div>
                           ))
                         ) : (
-                          <button
-                            onClick={() => {
-                              setShowNoteInput(true);
-                              setNoteTitle('New Note');
-                              setNoteContent('');
-                            }}
-                            className={`w-full flex items-center justify-center gap-2 py-3 px-3 rounded-lg border border-dashed
-                      ${isDark ? 'border-gray-700 hover:border-amber-500/30 hover:bg-white/5' : 'border-gray-300 hover:border-amber-400 hover:bg-amber-50/50'}
-                      ${theme.textMuted} transition-all text-sm`}
-                          >
-                            <StickyNote size={14} strokeWidth={2} />
-                            <span>Add note</span>
-                          </button>
+                          <div className={`text-center py-8 px-4 rounded-xl ${theme.cardBg} border ${theme.cardBorder}`}>
+                            <div className={`mx-auto w-12 h-12 rounded-xl ${isDark ? 'bg-amber-500/10' : 'bg-amber-100'} flex items-center justify-center mb-3`}>
+                              <StickyNote size={20} className="text-amber-500 opacity-60" strokeWidth={2} />
+                            </div>
+                            <p className={`text-xs font-medium mb-1 ${theme.text}`}>No notes yet</p>
+                            <p className={`text-[10px] ${theme.textMuted} mb-3 opacity-70`}>Start taking notes</p>
+                            <button
+                              onClick={() => {
+                                setShowNoteInput(true);
+                                setNoteTitle('New Note');
+                                setNoteContent('');
+                              }}
+                              className={`inline-flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-medium
+                                ${isDark ? 'bg-amber-500/10 text-amber-400 hover:bg-amber-500/20' : 'bg-amber-100 text-amber-600 hover:bg-amber-200'}
+                                transition-all duration-200 hover:scale-105 active:scale-95`}
+                            >
+                              <Plus size={12} strokeWidth={2} />
+                              Add first note
+                            </button>
+                          </div>
                         )}
                       </div>
                     </div>

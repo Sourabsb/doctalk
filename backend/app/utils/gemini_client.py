@@ -179,3 +179,11 @@ ANSWER (be conversational, use document citations when relevant, remember past c
                     "chunk": content[:800]
                 })
         return source_chunks
+
+    async def generate_simple_response(self, prompt: str) -> str:
+        """Simple generation without document context - for mindmap/flashcards."""
+        try:
+            response = self.model.generate_content(prompt)
+            return response.text
+        except Exception as e:
+            raise ValueError(f"Failed to generate simple response: {str(e)}")
