@@ -1,0 +1,28 @@
+{
+  "embedding_dim": 384,
+  "max_seq_length": 128,
+  "vocab_size": 30522,
+  "d_model": 256,
+  "training_config": {
+    "dataset_name": "sentence-transformers/all-nli",
+    "max_samples": 500000,
+    "train_split": 0.95,
+    "vocab_size": 30522,
+    "embedding_dim": 384,
+    "d_model": 256,
+    "nhead": 8,
+    "num_layers": 4,
+    "dim_feedforward": 1024,
+    "max_seq_length": 128,
+    "dropout": 0.1,
+    "batch_size": 64,
+    "epochs": 5,
+    "learning_rate": 0.0005,
+    "warmup_ratio": 0.1,
+    "weight_decay": 0.01,
+    "max_grad_norm": 1.0,
+    "temperature": 0.05,
+    "save_path": "doctalk_embeddings_final",
+    "save_every_epoch": true
+  }
+}

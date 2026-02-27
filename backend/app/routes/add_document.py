@@ -136,7 +136,7 @@ async def add_documents_to_conversation(
                     detail="Could not match any uploaded files to document records. No documents were added."
                 )
 
-            vector_store = QdrantVectorStore(conversation.id)
+            vector_store = QdrantVectorStore(conversation.id, getattr(conversation, 'embedding_model', 'custom'))
             chunk_count, qdrant_texts, qdrant_metadatas = vector_store.add_documents(filtered_all_text_data, source_to_doc_id)
 
             # Save chunks to SQLite for metadata backup (use filtered data to match Qdrant)

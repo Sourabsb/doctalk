@@ -9,15 +9,16 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { ScrollArea } from '@/components/ui/scroll-area'
 
 // Lucide icons
-import { Upload, X, Cloud, Lock, ArrowRight, Loader2, Check, AlertCircle, Sparkles } from 'lucide-react'
+import { Upload, X, Cloud, Lock, ArrowRight, Loader2, Check, AlertCircle, Sparkles, Brain, Cpu } from 'lucide-react'
 
-const UploadModal = ({ isOpen, onClose, onUploadSuccess, isDark }) => {
+const UploadModal = ({ isOpen, onClose, onUploadSuccess }) => {
   const [files, setFiles] = useState([])
   const [conversationTitle, setConversationTitle] = useState('')
   const [dragActive, setDragActive] = useState(false)
   const [error, setError] = useState(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [llmMode, setLlmMode] = useState('local')
+  const [embeddingModel, setEmbeddingModel] = useState('custom')
   const fileInputRef = useRef(null)
 
   const handleDrag = useCallback((e) => {
@@ -53,11 +54,12 @@ const UploadModal = ({ isOpen, onClose, onUploadSuccess, isDark }) => {
     setIsProcessing(true)
     setError(null)
     try {
-      const response = await uploadFiles(files, conversationTitle.trim(), llmMode)
+      const response = await uploadFiles(files, conversationTitle.trim(), llmMode, embeddingModel)
       onUploadSuccess(response.conversation_id)
       setFiles([])
       setConversationTitle('')
       setLlmMode('local')
+      setEmbeddingModel('custom')
       onClose()
     } catch (error) {
       console.error('Upload failed:', error)
@@ -74,6 +76,7 @@ const UploadModal = ({ isOpen, onClose, onUploadSuccess, isDark }) => {
       setConversationTitle('')
       setError(null)
       setLlmMode('local')
+      setEmbeddingModel('custom')
       onClose()
     }
   }
@@ -209,6 +212,70 @@ const UploadModal = ({ isOpen, onClose, onUploadSuccess, isDark }) => {
                   </div>
                 )}
               </button>
+            </div>
+
+            {/* Embedding Model Selection */}
+            <div>
+              <p className="text-sm font-medium text-foreground mb-3">Embedding Model</p>
+              <div className="grid grid-cols-2 gap-4">
+                {/* Custom DocTalk Option */}
+                <button
+                  onClick={() => setEmbeddingModel('custom')}
+                  className={`
+                    p-4 rounded-lg border text-left transition-all flex items-center gap-4
+                    ${embeddingModel === 'custom'
+                      ? 'border-primary bg-primary/5 ring-1 ring-primary'
+                      : 'border-border bg-card hover:bg-muted/30'
+                    }
+                  `}
+                >
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${embeddingModel === 'custom' ? 'bg-purple-500/20' : 'bg-muted'
+                    }`}>
+                    <Brain className={`w-5 h-5 ${embeddingModel === 'custom' ? 'text-purple-500' : 'text-muted-foreground'}`} />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="font-semibold text-foreground">DocTalk</p>
+                      <Badge variant="secondary" className="text-xs">Custom</Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground">Custom trained model</p>
+                  </div>
+                  {embeddingModel === 'custom' && (
+                    <div className="w-5 h-5 rounded-full bg-purple-500 flex items-center justify-center">
+                      <Check className="w-3 h-3 text-white" />
+                    </div>
+                  )}
+                </button>
+
+                {/* All-MiniLM Option */}
+                <button
+                  onClick={() => setEmbeddingModel('allminilm')}
+                  className={`
+                    p-4 rounded-lg border text-left transition-all flex items-center gap-4
+                    ${embeddingModel === 'allminilm'
+                      ? 'border-primary bg-primary/5 ring-1 ring-primary'
+                      : 'border-border bg-card hover:bg-muted/30'
+                    }
+                  `}
+                >
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${embeddingModel === 'allminilm' ? 'bg-emerald-500/20' : 'bg-muted'
+                    }`}>
+                    <Cpu className={`w-5 h-5 ${embeddingModel === 'allminilm' ? 'text-emerald-500' : 'text-muted-foreground'}`} />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="font-semibold text-foreground">All-MiniLM</p>
+                      <Badge variant="secondary" className="text-xs">Standard</Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground">Pre-trained model</p>
+                  </div>
+                  {embeddingModel === 'allminilm' && (
+                    <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center">
+                      <Check className="w-3 h-3 text-white" />
+                    </div>
+                  )}
+                </button>
+              </div>
             </div>
 
             {/* Files List */}

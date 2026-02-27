@@ -4,18 +4,18 @@ import {
   ChevronLeft, ChevronRight, Plus, FileText, Search, Globe, Headphones,
   Video, Brain, FileBarChart, BookOpen, HelpCircle, Image, Presentation,
   StickyNote, X, Upload, File, Sparkles, MessageSquare, Volume2,
-  PanelLeft, PanelRight, Pencil, Undo2, Redo2, Bold, Italic, Link2, List, ListOrdered, RemoveFormatting, ChevronDown, FileUp, Trash, AlertTriangle, RefreshCw, Loader2, Square
+  PanelLeft, PanelRight, Pencil, Undo2, Redo2, Bold, Italic, Link2, List, ListOrdered, RemoveFormatting, ChevronDown, FileUp, Trash, AlertTriangle, RefreshCw, Loader2, Square, Download
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { getConversation, sendMessage, sendMessageStream, uploadFiles, addDocumentsToConversation, editMessage, deleteMessage as deleteMessageApi, deleteDocument, createNote, updateNote, convertNoteToSource, unconvertNoteFromSource, toggleDocument, getFlashcards, generateFlashcards, deleteFlashcard, getMindMap, generateMindMap } from '../utils/api';
+import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { getConversation, sendMessage, sendMessageStream, uploadFiles, addDocumentsToConversation, editMessage, deleteMessage as deleteMessageApi, deleteDocument, createNote, updateNote, convertNoteToSource, unconvertNoteFromSource, toggleDocument, getFlashcards, generateFlashcards, deleteFlashcard, getMindMap, generateMindMap, downloadChat } from '../utils/api';
 import MindMapCanvas from './MindMapCanvas';
 import { Button } from './ui/button';
 
 // Resizable Panel Component
-const ResizablePanel = ({ children, width, minWidth, maxWidth, onResize, side, isDark, collapsed }) => {
+const ResizablePanel = ({ children, width, minWidth, maxWidth, onResize, side, collapsed }) => {
   const [isResizing, setIsResizing] = useState(false);
   const panelRef = useRef(null);
 
@@ -62,7 +62,7 @@ const ResizablePanel = ({ children, width, minWidth, maxWidth, onResize, side, i
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
     };
-  }, [isResizing, minWidth, maxWidth, onResize, side, isDark]);
+  }, [isResizing, minWidth, maxWidth, onResize, side]);
 
   if (collapsed) return null;
 
@@ -85,7 +85,7 @@ const ResizablePanel = ({ children, width, minWidth, maxWidth, onResize, side, i
   );
 };
 // Inline Citation Component
-const InlineCitation = ({ number, source, chunkContent, isDark, onCitationClick }) => {
+const InlineCitation = ({ number, source, chunkContent, onCitationClick }) => {
   const handleClick = (e) => {
     e.stopPropagation();
     e.preventDefault();
@@ -96,7 +96,7 @@ const InlineCitation = ({ number, source, chunkContent, isDark, onCitationClick 
     <button
       onClick={handleClick}
       className={`inline-flex items-center justify-center min-w-[16px] h-[16px] mx-0.5 text-[10px] font-bold rounded cursor-pointer
-        ${isDark ? 'bg-primary text-white hover:bg-primary/90' : 'bg-primary text-white hover:bg-primary/90'}
+        bg-primary text-white hover:bg-primary/90
         transition-colors`}
       style={{
         verticalAlign: 'middle',
@@ -110,7 +110,7 @@ const InlineCitation = ({ number, source, chunkContent, isDark, onCitationClick 
 };
 
 // Markdown renderer with theme support and inline citations
-const MarkdownRenderer = ({ content, isDark, sources = [], sourceChunks = [], onCitationClick, leftPanelCollapsed }) => {
+const MarkdownRenderer = ({ content, sources = [], sourceChunks = [], onCitationClick, leftPanelCollapsed }) => {
   const [copiedCode, setCopiedCode] = useState(null);
 
   const copyToClipboard = async (code, index) => {
@@ -147,7 +147,6 @@ const MarkdownRenderer = ({ content, isDark, sources = [], sourceChunks = [], on
           number={citationNum}
           source={source}
           chunkContent={chunkContent}
-          isDark={isDark}
           onCitationClick={onCitationClick}
           leftPanelCollapsed={leftPanelCollapsed}
         />
@@ -177,12 +176,12 @@ const MarkdownRenderer = ({ content, isDark, sources = [], sourceChunks = [], on
             return (
               <div className="relative group my-3">
                 <div className={`flex items-center justify-between px-4 py-2 text-xs rounded-t-lg
-                  ${isDark ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-600'}`}>
+                  bg-[#f5f5f4] text-[#78716c]`}>
                   <span>{match[1]}</span>
                   <button
                     onClick={() => copyToClipboard(codeString, codeIndex)}
                     className={`flex items-center gap-1 px-2 py-1 rounded transition-colors
-                      ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-200'}`}
+                      hover:bg-[#e7e5e4]`}
                   >
                     {copiedCode === codeIndex ? (
                       <><Check size={14} /> Copied</>
@@ -192,7 +191,7 @@ const MarkdownRenderer = ({ content, isDark, sources = [], sourceChunks = [], on
                   </button>
                 </div>
                 <SyntaxHighlighter
-                  style={isDark ? oneDark : oneLight}
+                  style={oneLight}
                   language={match[1]}
                   PreTag="div"
                   customStyle={{
@@ -211,7 +210,7 @@ const MarkdownRenderer = ({ content, isDark, sources = [], sourceChunks = [], on
 
           return (
             <code className={`px-1.5 py-0.5 rounded text-sm
-              ${isDark ? 'bg-gray-700 text-amber-300' : 'bg-amber-100 text-amber-800'}`} {...props}>
+              bg-[#f5f5f4] text-[#292524]`} {...props}>
               {children}
             </code>
           );
@@ -223,7 +222,7 @@ const MarkdownRenderer = ({ content, isDark, sources = [], sourceChunks = [], on
             }
             return child;
           });
-          return <p className={`mb-3 last:mb-0 leading-relaxed ${isDark ? 'text-gray-100' : 'text-gray-800'}`}>{processedChildren}</p>;
+          return <p className={`mb-3 last:mb-0 leading-relaxed text-[#292524]`}>{processedChildren}</p>;
         },
         li: ({ children }) => {
           const processedChildren = React.Children.map(children, child => {
@@ -232,28 +231,48 @@ const MarkdownRenderer = ({ content, isDark, sources = [], sourceChunks = [], on
             }
             return child;
           });
-          return <li className={`leading-relaxed ${isDark ? 'text-gray-100' : 'text-gray-800'}`}>{processedChildren}</li>;
+          return <li className={`leading-relaxed text-[#292524]`}>{processedChildren}</li>;
         },
-        ul: ({ children }) => <ul className={`list-disc list-inside mb-3 space-y-1 ${isDark ? 'text-gray-100' : 'text-gray-800'}`}>{children}</ul>,
-        ol: ({ children }) => <ol className={`list-decimal list-inside mb-3 space-y-1 ${isDark ? 'text-gray-100' : 'text-gray-800'}`}>{children}</ol>,
-        h1: ({ children }) => <h1 className={`text-2xl font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>{children}</h1>,
-        h2: ({ children }) => <h2 className={`text-xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>{children}</h2>,
-        h3: ({ children }) => <h3 className={`text-lg font-semibold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>{children}</h3>,
+        ul: ({ children }) => <ul className={`list-disc list-inside mb-3 space-y-1 text-[#292524]`}>{children}</ul>,
+        ol: ({ children }) => <ol className={`list-decimal list-inside mb-3 space-y-1 text-[#292524]`}>{children}</ol>,
+        h1: ({ children }) => <h1 className={`text-2xl font-bold mb-3 text-[#292524]`}>{children}</h1>,
+        h2: ({ children }) => <h2 className={`text-xl font-bold mb-2 text-[#292524]`}>{children}</h2>,
+        h3: ({ children }) => <h3 className={`text-lg font-semibold mb-2 text-[#292524]`}>{children}</h3>,
         blockquote: ({ children }) => (
           <blockquote className={`border-l-4 pl-4 my-3 italic
-            ${isDark ? 'border-amber-500 text-gray-300' : 'border-amber-400 text-gray-600'}`}>
+            border-[#d97757] text-[#78716c]`}>
             {children}
           </blockquote>
         ),
-        a: ({ href, children }) => (
-          <a href={href} target="_blank" rel="noopener noreferrer"
-            className={`underline ${isDark ? 'text-amber-400 hover:text-amber-300' : 'text-amber-600 hover:text-amber-700'}`}>
-            {children}
-          </a>
-        ),
+        a: ({ href, children }) => {
+          // If the link text is just a number (e.g. [3](some_page_url)), treat as inline citation
+          const linkText = typeof children === 'string' ? children : (Array.isArray(children) ? children.join('') : '');
+          const citationNum = parseInt(linkText, 10);
+          if (!isNaN(citationNum) && String(citationNum) === linkText.trim()) {
+            const chunk = sourceChunks.find(sc => sc.index === citationNum);
+            const fallbackSource = sources[citationNum - 1] || href || 'Document';
+            const source = chunk?.source || fallbackSource;
+            const chunkContent = (chunk?.chunk || '').trim();
+            return (
+              <InlineCitation
+                key={`cite-link-${citationNum}`}
+                number={citationNum}
+                source={source}
+                chunkContent={chunkContent}
+                onCitationClick={onCitationClick}
+              />
+            );
+          }
+          return (
+            <a href={href} target="_blank" rel="noopener noreferrer"
+              className={`underline text-[#d97757] hover:text-[#c4684a]`}>
+              {children}
+            </a>
+          );
+        },
         table: ({ children }) => (
           <div className="overflow-x-auto my-3">
-            <table className={`min-w-full border ${isDark ? 'border-gray-700' : 'border-gray-300'}`}>
+            <table className={`min-w-full border border-[#e7e5e4]`}>
               {children}
             </table>
           </div>
@@ -266,7 +285,7 @@ const MarkdownRenderer = ({ content, isDark, sources = [], sourceChunks = [], on
             return child;
           });
           return (
-            <th className={`px-4 py-2 text-left font-semibold border-b ${isDark ? 'bg-gray-800 border-gray-700 text-gray-100' : 'bg-gray-100 border-gray-300 text-gray-900'}`}>
+            <th className={`px-4 py-2 text-left font-semibold border-b bg-[#f5f5f4] border-[#e7e5e4] text-[#292524]`}>
               {processedChildren}
             </th>
           );
@@ -279,7 +298,7 @@ const MarkdownRenderer = ({ content, isDark, sources = [], sourceChunks = [], on
             return child;
           });
           return (
-            <td className={`px-4 py-2 border-b ${isDark ? 'border-gray-700 text-gray-100' : 'border-gray-300 text-gray-800'}`}>
+            <td className={`px-4 py-2 border-b border-[#e7e5e4] text-[#292524]`}>
               {processedChildren}
             </td>
           );
@@ -291,7 +310,7 @@ const MarkdownRenderer = ({ content, isDark, sources = [], sourceChunks = [], on
   );
 };
 
-const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false }) => {
+const ChatInterface = ({ conversationId, onConversationUpdate }) => {
   // Window width state for reactive sizing
   const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
 
@@ -319,6 +338,9 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
   const [currentLlmMode, setCurrentLlmMode] = useState('api');
   const [cloudModel, setCloudModel] = useState(() => localStorage.getItem('docTalkCloudModel') || 'gemini');
   const [showModelMenu, setShowModelMenu] = useState(false);
+
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   const [isStreaming, setIsStreaming] = useState(false);
   const [abortController, setAbortController] = useState(null);
@@ -397,26 +419,26 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
   }, [inputMessage]);
   // Theme colors - matching landing page glass effects
   const theme = {
-    bg: isDark ? 'bg-transparent' : 'bg-transparent',
-    panelBg: isDark ? 'bg-white/[0.03] backdrop-blur-xl border border-white/10' : 'bg-white/70 backdrop-blur-xl border border-amber-100/50',
-    panelBorder: isDark ? 'border-white/10' : 'border-amber-100/50',
-    text: isDark ? 'text-gray-100' : 'text-gray-900',
-    textMuted: isDark ? 'text-gray-500' : 'text-gray-500',
-    textSecondary: isDark ? 'text-gray-400' : 'text-gray-600',
-    inputBg: isDark ? 'bg-white/5 backdrop-blur-xl' : 'bg-white/80 backdrop-blur-xl',
-    inputBorder: isDark ? 'border-white/10' : 'border-amber-200/50',
-    cardBg: isDark ? 'bg-white/[0.02]' : 'bg-white/50',
-    cardBorder: isDark ? 'border-white/5' : 'border-amber-100/30',
-    hoverBg: isDark ? 'hover:bg-white/5' : 'hover:bg-amber-50/50',
+    bg: 'bg-transparent',
+    panelBg: 'bg-white border border-[#e7e5e4]',
+    panelBorder: 'border-[#e7e5e4]',
+    text: 'text-[#292524]',
+    textMuted: 'text-[#78716c]',
+    textSecondary: 'text-[#57534e]',
+    inputBg: 'bg-white',
+    inputBorder: 'border-[#e7e5e4]',
+    cardBg: 'bg-[#faf9f5]',
+    cardBorder: 'border-[#e7e5e4]',
+    hoverBg: 'hover:bg-[#f5f5f4]',
     buttonPrimary: 'bg-primary hover:bg-primary/90 text-primary-foreground',
     userMessage: 'bg-primary text-primary-foreground',
-    assistantMessage: isDark ? 'bg-white/[0.03] backdrop-blur-xl' : 'bg-white/80 backdrop-blur-xl',
+    assistantMessage: 'bg-white',
   };
 
   // Studio tools - only active features
   const studioTools = [
-    { icon: Brain, label: 'Mind Map', color: isDark ? 'text-emerald-400' : 'text-emerald-600' },
-    { icon: BookOpen, label: 'Flashcards', color: isDark ? 'text-pink-400' : 'text-pink-600' },
+    { icon: Brain, label: 'Mind Map', color: 'text-emerald-600' },
+    { icon: BookOpen, label: 'Flashcards', color: 'text-pink-600' },
   ];
 
   const scrollToBottom = useCallback(() => {
@@ -1553,6 +1575,20 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
     // TODO: Save to backend if needed
   };
 
+  // Export / download conversation
+  const handleExport = async (format) => {
+    setShowExportMenu(false);
+    if (!conversationId || isExporting) return;
+    setIsExporting(true);
+    try {
+      await downloadChat(conversationId, format);
+    } catch (err) {
+      console.error('Export failed:', err);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   // Copy message content
   const handleCopyMessage = async (content, messageId) => {
     await navigator.clipboard.writeText(content);
@@ -2011,7 +2047,7 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
         className={`absolute ${side === 'right' ? 'left-full ml-3' : 'right-full mr-3'} top-1/2 -translate-y-1/2 
           px-2.5 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap opacity-0 invisible pointer-events-none
           group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all duration-200
-          ${isDark ? 'bg-gray-900 text-white border border-white/10' : 'bg-gray-900 text-white'} shadow-xl`}
+          bg-[#292524] text-white shadow-md`}
         style={{ zIndex: 99999 }}
       >
         {text}
@@ -2023,22 +2059,22 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
     <div className={`flex h-full p-2 gap-2 ${theme.bg}`} style={{ overflow: 'visible' }}>
       {/* Left Panel Collapsed Bar */}
       {leftPanelCollapsed && (
-        <div className={`relative z-[60] flex flex-col items-center py-4 px-2 ${theme.panelBg} rounded-2xl shadow-lg transition-all duration-300`}>
+        <div className={`relative z-[60] flex flex-col items-center py-4 px-2 ${theme.panelBg} rounded-xl shadow-sm transition-all duration-300`}>
           <Tooltip text="Expand sources" side="right">
             <button
               onClick={() => setLeftPanelCollapsed(false)}
-              className={`p-2.5 rounded-xl transition-all duration-200 ${theme.hoverBg} ${theme.textSecondary} mb-3 hover:scale-110 active:scale-95`}
+              className={`p-2.5 rounded-xl transition-all duration-200 ${theme.hoverBg} ${theme.textSecondary} mb-3`}
             >
               <PanelLeft size={20} strokeWidth={2} />
             </button>
           </Tooltip>
 
-          <div className={`w-8 h-px ${isDark ? 'bg-gradient-to-r from-transparent via-gray-600 to-transparent' : 'bg-gradient-to-r from-transparent via-gray-300 to-transparent'} my-2`} />
+          <div className={`w-8 h-px bg-gradient-to-r from-transparent via-[#e7e5e4] to-transparent my-2`} />
 
           <Tooltip text="Add source" side="right">
             <button
               onClick={() => fileInputRef.current?.click()}
-              className={`p-2.5 rounded-xl transition-all duration-200 ${theme.hoverBg} ${theme.textSecondary} mb-2 hover:scale-110 active:scale-95 hover:text-primary`}
+              className={`p-2.5 rounded-xl transition-all duration-200 ${theme.hoverBg} ${theme.textSecondary} mb-2 hover:text-primary`}
             >
               <Plus size={20} strokeWidth={2} />
             </button>
@@ -2046,11 +2082,11 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
 
           {documents.length > 0 && (
             <>
-              <div className={`w-8 h-px ${isDark ? 'bg-gradient-to-r from-transparent via-gray-600 to-transparent' : 'bg-gradient-to-r from-transparent via-gray-300 to-transparent'} my-2`} />
+              <div className={`w-8 h-px bg-gradient-to-r from-transparent via-[#e7e5e4] to-transparent my-2`} />
               <Tooltip text={`${documents.length} source${documents.length > 1 ? 's' : ''}`} side="right">
-                <div className={`relative p-2.5 rounded-xl ${isDark ? 'bg-primary/10' : 'bg-primary/5'} transition-all duration-200 hover:scale-110`}>
+                <div className={`relative p-2.5 rounded-xl bg-primary/5 transition-all duration-200`}>
                   <FileText size={20} strokeWidth={2} className="text-primary" />
-                  <span className={`absolute -top-1 -right-1 min-w-[18px] h-[18px] flex items-center justify-center text-[10px] font-bold rounded-full ${isDark ? 'bg-primary text-white' : 'bg-primary text-white'} shadow-lg`}>
+                  <span className={`absolute -top-1 -right-1 min-w-[18px] h-[18px] flex items-center justify-center text-[10px] font-bold rounded-full bg-primary text-white shadow-sm`}>
                     {documents.length}
                   </span>
                 </div>
@@ -2070,10 +2106,9 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
         ))}
         onResize={sourcePreview ? () => { } : setLeftPanelWidth}
         side="left"
-        isDark={isDark}
         collapsed={leftPanelCollapsed || mindMapCanvasMode}
       >
-        <div className={`h-full flex flex-col ${isDark ? 'bg-[#1a1a1a]/95' : 'bg-white/95'} border ${isDark ? 'border-white/10' : 'border-gray-200'} backdrop-blur-xl rounded-2xl`}>
+        <div className={`h-full flex flex-col bg-white border border-[#e7e5e4] rounded-xl`}>
           {sourcePreview ? (
             /* Source Document Preview - Overlaps the Sources panel like notes editor */
             <>
@@ -2104,16 +2139,16 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
               </div>
 
               {/* Source Content - Full document with highlighted chunk */}
-              <div className={`flex-1 overflow-y-auto p-4 ${isDark ? 'text-gray-100' : 'text-gray-900'}`} id="source-content-container">
+              <div className={`flex-1 overflow-y-auto p-4 text-[#292524]`} id="source-content-container">
                 {sourcePreview.content ? (
-                  <div className={`prose prose-sm max-w-none ${isDark ? 'prose-invert' : ''}`}>
-                    <div className={`whitespace-pre-wrap text-sm leading-relaxed ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>
+                  <div className={`prose prose-sm max-w-none`}>
+                    <div className={`whitespace-pre-wrap text-sm leading-relaxed text-[#292524]`}>
                       {(() => {
                         const content = sourcePreview.content;
 
                         // If no highlight needed, show full content
                         if (!sourceHighlight) {
-                          return <pre className={`whitespace-pre-wrap text-sm leading-relaxed font-sans ${isDark ? 'text-gray-100' : 'text-gray-900'} bg-transparent`}>{content}</pre>;
+                          return <pre className={`whitespace-pre-wrap text-sm leading-relaxed font-sans text-[#292524] bg-transparent`}>{content}</pre>;
                         }
 
                         // Find the chunk to highlight
@@ -2134,7 +2169,7 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
 
                         // If still not found, just show full content
                         if (highlightIndex === -1) {
-                          return <pre className={`whitespace-pre-wrap text-sm leading-relaxed font-sans ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{content}</pre>;
+                          return <pre className={`whitespace-pre-wrap text-sm leading-relaxed font-sans text-[#292524]`}>{content}</pre>;
                         }
 
                         // Calculate highlight range (show the relevant chunk fully)
@@ -2169,7 +2204,7 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                   </div>
                 ) : (
                   <div className="flex flex-col items-center justify-center h-full">
-                    <div className={`w-12 h-12 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-gray-100'} flex items-center justify-center mb-3`}>
+                    <div className={`w-12 h-12 rounded-xl bg-[#f5f5f4] flex items-center justify-center mb-3`}>
                       <FileText size={24} className="opacity-40" />
                     </div>
                     <p className={`text-sm ${theme.textMuted}`}>Content not available</p>
@@ -2183,14 +2218,14 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
             /* Normal Sources List View */
             <>
               {/* Sources Header */}
-              <div className={`flex items-center justify-between px-5 py-4 border-b ${theme.panelBorder} backdrop-blur-sm`}>
+              <div className={`flex items-center justify-between px-5 py-4 border-b ${theme.panelBorder}`}>
                 <div className="flex items-center gap-2.5">
-                  <div className={`p-1.5 rounded-lg ${isDark ? 'bg-primary/10' : 'bg-primary/10'}`}>
+                  <div className={`p-1.5 rounded-lg bg-primary/10`}>
                     <FileText size={16} strokeWidth={2} className="text-primary" />
                   </div>
                   <h2 className={`text-sm font-semibold tracking-wide uppercase ${theme.textSecondary}`}>Sources</h2>
                   {documents.length > 0 && (
-                    <span className={`ml-1 px-2 py-0.5 text-[10px] font-bold rounded-full ${isDark ? 'bg-primary/20 text-primary' : 'bg-primary/20 text-primary'}`}>
+                    <span className={`ml-1 px-2 py-0.5 text-[10px] font-bold rounded-full bg-primary/20 text-primary`}>
                       {documents.length}
                     </span>
                   )}
@@ -2198,14 +2233,14 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                 <div className="flex items-center gap-1">
                   <button
                     onClick={() => fileInputRef.current?.click()}
-                    className={`p-2 rounded-xl transition-all duration-200 ${theme.hoverBg} ${theme.textSecondary} hover:text-primary hover:scale-105 active:scale-95`}
+                    className={`p-2 rounded-xl transition-all duration-200 ${theme.hoverBg} ${theme.textSecondary} hover:text-primary`}
                     title="Add source"
                   >
                     <Plus size={16} strokeWidth={2} />
                   </button>
                   <button
                     onClick={() => setLeftPanelCollapsed(true)}
-                    className={`p-2 rounded-xl transition-all duration-200 ${theme.hoverBg} ${theme.textSecondary} hover:scale-105 active:scale-95`}
+                    className={`p-2 rounded-xl transition-all duration-200 ${theme.hoverBg} ${theme.textSecondary}`}
                     title="Collapse sources"
                   >
                     <PanelLeft size={16} strokeWidth={2} />
@@ -2218,8 +2253,8 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   className={`group w-full flex items-center justify-center gap-2.5 py-3 px-4 rounded-xl border-2 border-dashed
-                ${isDark ? 'border-gray-700 hover:border-primary/50 hover:bg-primary/5' : 'border-gray-300 hover:border-primary/50 hover:bg-primary/5'}
-                ${theme.textSecondary} hover:text-primary transition-all duration-200 text-sm font-medium hover:scale-[1.02] active:scale-[0.98]`}
+                border-[#e7e5e4] hover:border-primary/50 hover:bg-primary/5
+                ${theme.textSecondary} hover:text-primary transition-all duration-200 text-sm font-medium`}
                 >
                   <Upload size={18} strokeWidth={2} className="group-hover:animate-bounce" />
                   <span>Add sources</span>
@@ -2235,10 +2270,9 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                         key={doc.id || index}
                         className={`group relative flex items-center gap-3 p-3 rounded-xl border transition-all duration-200 cursor-pointer
                           ${sourcePreview?.id === doc.id
-                            ? `ring-2 ring-primary ${isDark ? 'bg-primary/5 border-primary/30' : 'bg-primary/5 border-primary/30'}`
+                            ? `ring-2 ring-primary bg-primary/5 border-primary/30`
                             : `${theme.cardBg} ${theme.cardBorder} hover:border-primary/30 hover:shadow-md`}
-                          ${doc.is_active === false ? 'opacity-60' : ''}
-                          hover:scale-[1.01] active:scale-[0.99]`}
+                          ${doc.is_active === false ? 'opacity-60' : ''}`}
                         onClick={() => { setSourcePreview(doc); setSourceHighlight(null); }}
                       >
                         {/* Checkbox for active/inactive */}
@@ -2251,8 +2285,8 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                           className={`flex-shrink-0 w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all duration-200
                             ${doc.is_active !== false
                               ? 'bg-primary border-primary shadow-sm'
-                              : isDark ? 'border-gray-600 bg-transparent hover:border-gray-500' : 'border-gray-300 bg-transparent hover:border-gray-400'}
-                            ${doc.isProcessing || processingDocIds.includes(doc.id) ? 'opacity-50 cursor-not-allowed' : 'hover:scale-110'}`}
+                              : 'border-[#d6d3d1] bg-transparent hover:border-[#a8a29e]'}
+                            ${doc.isProcessing || processingDocIds.includes(doc.id) ? 'opacity-50 cursor-not-allowed' : ''}`}
                           title={doc.is_active !== false ? 'Disable for queries' : 'Enable for queries'}
                         >
                           {doc.is_active !== false && (
@@ -2261,7 +2295,7 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                             </svg>
                           )}
                         </button>
-                        <div className={`p-2 rounded-lg ${isDark ? 'bg-primary/10' : 'bg-primary/10'} relative transition-transform group-hover:scale-105`}>
+                        <div className={`p-2 rounded-lg bg-primary/10 relative transition-transform`}>
                           {doc.isProcessing || processingDocIds.includes(doc.id) ? (
                             <Loader2 size={16} className={`text-primary animate-spin`} strokeWidth={2} />
                           ) : doc.doc_type === 'note' ? (
@@ -2277,12 +2311,12 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                           <p className={`text-xs ${theme.textMuted} flex items-center gap-1 mt-0.5`}>
                             {doc.isProcessing || processingDocIds.includes(doc.id) ? (
                               <>
-                                <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                                <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#d97757] animate-pulse" />
                                 Converting...
                               </>
                             ) : doc.is_active === false ? (
                               <>
-                                <span className="inline-block w-1.5 h-1.5 rounded-full bg-gray-400" />
+                                <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#a8a29e]" />
                                 Disabled
                               </>
                             ) : doc.doc_type === 'note' ? (
@@ -2303,7 +2337,7 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                             e.stopPropagation();
                             setShowDeleteSourceConfirm(index);
                           }}
-                          className={`flex-shrink-0 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-200 ${isDark ? 'hover:bg-red-500/20 text-red-400' : 'hover:bg-red-50 text-red-500'} hover:scale-110`}
+                          className={`flex-shrink-0 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-200 hover:bg-destructive/10 text-destructive`}
                           title="Remove source"
                         >
                           <X size={16} strokeWidth={2} />
@@ -2312,14 +2346,14 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                     ))
                   ) : (
                     <div className={`text-center py-12 px-4 ${theme.textMuted}`}>
-                      <div className={`mx-auto w-16 h-16 rounded-2xl ${isDark ? 'bg-gradient-to-br from-gray-800 to-gray-900' : 'bg-gradient-to-br from-gray-50 to-gray-100'} flex items-center justify-center mb-4 shadow-inner`}>
+                      <div className={`mx-auto w-16 h-16 rounded-xl bg-[#f5f5f4] flex items-center justify-center mb-4`}>
                         <FileText size={28} className="opacity-30" strokeWidth={1.5} />
                       </div>
                       <p className="text-sm font-semibold mb-1">No sources added</p>
                       <p className="text-xs opacity-70 mb-4">Upload documents to get started</p>
                       <button
                         onClick={() => fileInputRef.current?.click()}
-                        className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium ${isDark ? 'bg-primary/10 text-primary hover:bg-primary/20' : 'bg-primary/10 text-primary hover:bg-primary/20'} transition-all hover:scale-105`}
+                        className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-all`}
                       >
                         <Plus size={14} strokeWidth={2} />
                         Add your first source
@@ -2389,11 +2423,11 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
 
       {/* Middle Panel - Chat */}
       <div
-        className={`flex-1 flex flex-col min-w-0 relative z-10 ${theme.panelBg} rounded-2xl overflow-hidden`}
+        className={`flex-1 flex flex-col min-w-0 relative z-10 ${theme.panelBg} rounded-xl overflow-hidden`}
         style={{ display: mindMapCanvasMode ? 'none' : 'flex' }}
       >
         {/* Chat Header */}
-        <div className={`relative z-30 flex items-center justify-between px-5 py-3 border-b ${theme.panelBorder} backdrop-blur-xl`}>
+        <div className={`relative z-30 flex items-center justify-between px-5 py-3 border-b ${theme.panelBorder}`}>
           <div className="flex items-center gap-2.5">
             <div className={`p-1.5 rounded-xl bg-primary/10`}>
               <MessageSquare size={16} className="text-primary" strokeWidth={2} />
@@ -2408,7 +2442,7 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                   if (e.key === 'Enter') handleTitleSave();
                   if (e.key === 'Escape') { setIsEditingTitle(false); setEditTitleValue(conversationTitle || 'New Chat'); }
                 }}
-                className={`text-sm font-semibold bg-transparent border-b-2 border-amber-500 outline-none px-1 ${theme.text}`}
+                className={`text-sm font-semibold bg-transparent border-b-2 border-[#d97757] outline-none px-1 ${theme.text}`}
                 autoFocus
               />
             ) : (
@@ -2425,6 +2459,56 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
 
           {/* Right Header Controls */}
           <div className="flex items-center gap-2">
+            {/* Export Conversation */}
+            {messages.length > 0 && (
+              <div
+                className="relative"
+                onBlur={() => setTimeout(() => setShowExportMenu(false), 120)}
+              >
+                <button
+                  type="button"
+                  onClick={() => setShowExportMenu((o) => !o)}
+                  disabled={isExporting}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all border bg-[#f5f5f4] text-[#292524] border-[#e7e5e4] hover:bg-[#e7e5e4] disabled:opacity-50"
+                  title="Export conversation"
+                >
+                  {isExporting ? <Loader2 size={13} className="animate-spin" strokeWidth={2} /> : <Download size={13} strokeWidth={2} />}
+                  <span>Export</span>
+                </button>
+                {showExportMenu && (
+                  <div className="absolute top-full right-0 mt-2 min-w-[140px] rounded-xl shadow-md border overflow-hidden z-[100] bg-white border-[#e7e5e4]">
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => handleExport('pdf')}
+                      className="w-full text-left px-3 py-2.5 text-xs font-medium transition-colors flex items-center gap-2 text-[#292524] hover:bg-[#faf9f5]"
+                    >
+                      <FileText size={14} className="text-destructive" strokeWidth={2} />
+                      <span>Export as PDF</span>
+                    </button>
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => handleExport('txt')}
+                      className="w-full text-left px-3 py-2.5 text-xs font-medium transition-colors flex items-center gap-2 text-[#292524] hover:bg-[#faf9f5]"
+                    >
+                      <FileBarChart size={14} className="text-blue-500" strokeWidth={2} />
+                      <span>Export as TXT</span>
+                    </button>
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => handleExport('json')}
+                      className="w-full text-left px-3 py-2.5 text-xs font-medium transition-colors flex items-center gap-2 text-[#292524] hover:bg-[#faf9f5]"
+                    >
+                      <FileText size={14} className="text-[#d97757]" strokeWidth={2} />
+                      <span>Export as JSON</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Model Selector - Moved from Input Area */}
             {currentLlmMode === 'api' && (
               <div
@@ -2435,18 +2519,16 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                   type="button"
                   onClick={() => setShowModelMenu((open) => !open)}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all border
-                    ${isDark
-                      ? 'bg-white/10 text-gray-100 border-white/15 hover:bg-white/15'
-                      : 'bg-amber-100 text-amber-900 border-amber-200 hover:bg-amber-100'}
+                    bg-[#f5f5f4] text-[#292524] border-[#e7e5e4] hover:bg-[#e7e5e4]
                   `}
                 >
                   <span>{cloudModel === 'groq' ? 'Groq' : 'Gemini'}</span>
-                  <ChevronDown size={12} className={isDark ? 'text-gray-200' : 'text-amber-900'} strokeWidth={2} />
+                  <ChevronDown size={12} className={'text-[#292524]'} strokeWidth={2} />
                 </button>
                 {showModelMenu && (
                   <div
-                    className={`absolute top-full right-0 mt-2 min-w-[160px] rounded-2xl shadow-2xl border overflow-hidden z-[100]
-                      ${isDark ? 'bg-[#1a1b1e] border-white/10' : 'bg-white border-amber-100'}`}
+                    className={`absolute top-full right-0 mt-2 min-w-[160px] rounded-xl shadow-md border overflow-hidden z-[100]
+                      bg-white border-[#e7e5e4]`}
                   >
                     {[
                       { value: 'gemini', label: 'Gemini' },
@@ -2463,13 +2545,11 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                             setShowModelMenu(false);
                           }}
                           className={`w-full text-left px-3 py-2 text-xs font-medium transition-colors flex items-center justify-between
-                            ${isDark
-                              ? isActive ? 'bg-white/10 text-white' : 'text-gray-200 hover:bg-white/5'
-                              : isActive ? 'bg-amber-50 text-amber-900' : 'text-gray-800 hover:bg-amber-50'}
+                            ${isActive ? 'bg-[#faf9f5] text-[#292524]' : 'text-[#292524] hover:bg-[#faf9f5]'}
                           `}
                         >
                           <span>{label}</span>
-                          {isActive && <span className={`text-[10px] ${isDark ? 'text-amber-300' : 'text-amber-600'}`}>Active</span>}
+                          {isActive && <span className={`text-[10px] text-[#d97757]`}>Active</span>}
                         </button>
                       );
                     })}
@@ -2480,8 +2560,8 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
 
             {/* LLM Mode Badge */}
             <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${currentLlmMode === 'local'
-              ? isDark ? 'bg-amber-500/20 text-amber-300' : 'bg-amber-100 text-amber-700'
-              : isDark ? 'bg-blue-500/20 text-blue-300' : 'bg-blue-100 text-blue-700'
+              ? 'bg-[#f5f5f4] text-[#c4684a]'
+              : 'bg-blue-100 text-blue-700'
               }`}>
               {currentLlmMode === 'local' ? (
                 <>
@@ -2515,7 +2595,7 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
           {
             messages.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center">
-                <div className={`w-14 h-14 rounded-xl bg-primary flex items-center justify-center mb-5 shadow-lg ${isDark ? 'shadow-primary/20' : 'shadow-primary/30'}`}>
+                <div className={`w-14 h-14 rounded-xl bg-primary flex items-center justify-center mb-5 shadow-sm`}>
                   <Sparkles size={26} className="text-primary-foreground" strokeWidth={2} />
                 </div>
                 <h2 className={`text-lg font-semibold mb-2 ${theme.text}`}>How can I help you today?</h2>
@@ -2553,7 +2633,7 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                               </button>
                               <button
                                 onClick={() => handleEditAndRegenerate(message.id)}
-                                className="px-3 py-1.5 text-sm rounded-lg bg-white text-amber-600 hover:bg-white/90 font-medium"
+                              className="px-3 py-1.5 text-sm rounded-lg bg-white text-[#d97757] hover:bg-white/90 font-medium"
                               >
                                 Save & Submit
                               </button>
@@ -2602,25 +2682,24 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                       </div>
                     ) : (
                       /* AI Response - New design with copy, speaker, inline citations */
-                      <div className={`relative max-w-[85%] rounded-xl px-4 py-3 ${theme.assistantMessage} ${theme.text} border ${theme.cardBorder} shadow-sm ${message.isError ? 'border-red-500/50 bg-red-500/10' : ''}`} style={{ overflow: 'visible' }}>
+                      <div className={`relative max-w-[85%] rounded-xl px-4 py-3 ${theme.assistantMessage} ${theme.text} border ${theme.cardBorder} shadow-sm ${message.isError ? 'border-destructive/50 bg-destructive/10' : ''}`} style={{ overflow: 'visible' }}>
                         {/* Show "Thinking..." when waiting for first token */}
                         {message.isWaitingForFirstToken ? (
                           <div className="flex items-center gap-2">
                             <div className="flex gap-1">
-                              <span className="w-2 h-2 bg-amber-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                              <span className="w-2 h-2 bg-amber-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                              <span className="w-2 h-2 bg-amber-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                              <span className="w-2 h-2 bg-[#d97757] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                              <span className="w-2 h-2 bg-[#d97757] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                              <span className="w-2 h-2 bg-[#d97757] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                             </div>
                             <span className={theme.textMuted}>Thinking...</span>
                           </div>
                         ) : (
                           <>
-                            <div className={`prose prose-sm max-w-none ${isDark ? 'prose-invert' : ''}`} style={{ overflow: 'visible' }}>
+                            <div className={`prose prose-sm max-w-none`} style={{ overflow: 'visible' }}>
                               <MarkdownRenderer
                                 content={message.isStreaming && !message.isWaitingForFirstToken
                                   ? message.content + '▍'
                                   : message.content}
-                                isDark={isDark}
                                 sources={message.sources || []}
                                 sourceChunks={message.sourceChunks || []}
                                 leftPanelCollapsed={leftPanelCollapsed}
@@ -2639,7 +2718,7 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
 
                         {/* Action Bar - Copy, Speaker, Regenerate - Hide during streaming */}
                         {!message.isStreaming && (
-                          <div className={`flex items-center gap-1 mt-3 pt-2 border-t ${isDark ? 'border-white/5' : 'border-gray-100'}`}>
+                          <div className={`flex items-center gap-1 mt-3 pt-2 border-t border-[#e7e5e4]`}>
                             <button
                               onClick={() => handleCopyMessage(message.content, message.id)}
                               className={`p-1.5 rounded-md transition-all ${theme.hoverBg} ${theme.textMuted}`}
@@ -2653,7 +2732,7 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                             </button>
                             <button
                               onClick={() => handleSpeak(message.content, message.id)}
-                              className={`p-1.5 rounded-md transition-all ${theme.hoverBg} ${speakingMessageId === message.id ? 'text-amber-500' : theme.textMuted}`}
+                              className={`p-1.5 rounded-md transition-all ${theme.hoverBg} ${speakingMessageId === message.id ? 'text-[#d97757]' : theme.textMuted}`}
                               title={speakingMessageId === message.id ? "Stop speaking" : "Read aloud"}
                             >
                               <Volume2 size={14} strokeWidth={2} />
@@ -2679,12 +2758,12 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                 {/* Loading indicator - only show if no streaming message */}
                 {isLoading && !messages.some(m => m.isStreaming) && (
                   <div className="flex justify-start">
-                    <div className={`${theme.assistantMessage} ${theme.text} border ${theme.cardBorder} rounded-2xl px-4 py-3`}>
+                    <div className={`${theme.assistantMessage} ${theme.text} border ${theme.cardBorder} rounded-xl px-4 py-3`}>
                       <div className="flex items-center gap-2">
                         <div className="flex gap-1">
-                          <span className="w-2 h-2 bg-amber-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                          <span className="w-2 h-2 bg-amber-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                          <span className="w-2 h-2 bg-amber-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                          <span className="w-2 h-2 bg-[#d97757] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                          <span className="w-2 h-2 bg-[#d97757] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                          <span className="w-2 h-2 bg-[#d97757] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                         </div>
                         <span className={theme.textMuted}>Thinking</span>
                       </div>
@@ -2703,10 +2782,10 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
               <Button
                 onClick={handleScrollToBottom}
                 size="icon"
-                className={`rounded-full w-9 h-9 shadow-lg ${isDark ? 'bg-white/10 hover:bg-white/20 border border-white/20' : 'bg-white hover:bg-gray-50 border border-gray-200'}`}
+                className={`rounded-full w-9 h-9 shadow-sm bg-white hover:bg-[#f5f5f4] border border-[#e7e5e4]`}
                 title="Scroll to bottom"
               >
-                <ChevronDown size={16} strokeWidth={2.5} className={isDark ? 'text-white' : 'text-gray-700'} />
+                <ChevronDown size={16} strokeWidth={2.5} className={'text-[#292524]'} />
               </Button>
             </div>
           )
@@ -2716,10 +2795,7 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
         < div className="px-4 py-4 relative z-50" >
           <div className="max-w-3xl mx-auto">
             <div
-              className={`grid gap-x-2 gap-y-2 items-end rounded-3xl border-2 shadow-xl transition-all duration-200 ease-in-out ${isDark
-                  ? 'bg-[#1a1a1a]/95 border-white/20 backdrop-blur-xl shadow-black/20'
-                  : 'bg-white/95 border-gray-200 backdrop-blur-xl shadow-gray-900/10'
-                }`}
+              className={`grid gap-x-2 gap-y-2 items-end rounded-xl border shadow-md transition-all duration-200 ease-in-out bg-white border-[#e7e5e4]`}
               style={{
                 gridTemplateColumns: 'auto 1fr auto',
                 gridTemplateAreas: isExpanded
@@ -2732,10 +2808,7 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
               <div style={{ gridArea: 'left' }} className="flex items-end gap-2 self-end">
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className={`p-2.5 rounded-xl transition-all shrink-0 ${isDark
-                      ? 'hover:bg-white/10 text-gray-300 hover:text-white'
-                      : 'hover:bg-gray-100 text-gray-600 hover:text-gray-900'
-                    } hover:scale-105 active:scale-95`}
+                  className={`p-2.5 rounded-xl transition-all shrink-0 hover:bg-[#f5f5f4] text-[#78716c] hover:text-[#292524]`}
                   title="Attach file"
                 >
                   <Plus size={20} strokeWidth={2} />
@@ -2749,8 +2822,7 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                 onChange={(e) => setInputMessage(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Ask about your documents..."
-                className={`w-full resize-none bg-transparent outline-none py-2 px-3 overflow-y-auto text-sm leading-6 ${isDark ? 'text-gray-100 placeholder:text-gray-500' : 'text-gray-900 placeholder:text-gray-400'
-                  }`}
+                className={`w-full resize-none bg-transparent outline-none py-2 px-3 overflow-y-auto text-sm leading-6 text-[#292524] placeholder:text-[#a8a29e]`}
                 rows={1}
                 disabled={false}
                 style={{
@@ -2766,11 +2838,9 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                 <button
                   onClick={handleVoiceInput}
                   className={`p-2.5 rounded-xl transition-all shrink-0 ${isRecording
-                      ? 'animate-breathing ' + (isDark ? 'bg-red-500 text-white' : 'bg-red-600 text-white')
-                      : isDark
-                        ? 'hover:bg-white/10 text-gray-300 hover:text-white'
-                        : 'hover:bg-gray-100 text-gray-600 hover:text-gray-900'
-                    } hover:scale-105 active:scale-95`}
+                      ? 'animate-breathing bg-destructive text-destructive-foreground'
+                      : 'hover:bg-[#f5f5f4] text-[#78716c] hover:text-[#292524]'
+                    }`}
                   title={isRecording ? 'Stop recording' : 'Start voice input'}
                 >
                   <Mic size={20} strokeWidth={2} />
@@ -2778,8 +2848,7 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                 {isStreaming ? (
                   <button
                     onClick={handleStop}
-                    className={`p-2.5 rounded-xl transition-all shrink-0 ${isDark ? 'bg-red-500 text-white hover:bg-red-400' : 'bg-red-600 text-white hover:bg-red-700'
-                      } hover:scale-105 active:scale-95 shadow-lg`}
+                    className={`p-2.5 rounded-xl transition-all shrink-0 bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-sm`}
                     title="Stop generating"
                   >
                     <Square size={20} strokeWidth={2} fill="currentColor" />
@@ -2789,7 +2858,7 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                     onClick={handleSubmit}
                     disabled={isLoading || (!inputMessage.trim() && selectedFiles.length === 0)}
                     className={`p-2.5 rounded-xl transition-all shrink-0 ${theme.buttonPrimary}
-                      disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 active:scale-95 shadow-lg`}
+                      disabled:opacity-50 disabled:cursor-not-allowed shadow-sm`}
                   >
                     <Send size={20} strokeWidth={2} />
                   </button>
@@ -2804,23 +2873,23 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
       {/* Right Panel Collapsed Bar */}
       {
         rightPanelCollapsed && (
-          <div className={`relative z-[60] flex flex-col items-center py-4 px-2 ${theme.panelBg} rounded-2xl shadow-lg transition-all duration-300`}>
+          <div className={`relative z-[60] flex flex-col items-center py-4 px-2 ${theme.panelBg} rounded-xl shadow-sm transition-all duration-300`}>
             <Tooltip text="Expand studio" side="left">
               <button
                 onClick={() => setRightPanelCollapsed(false)}
-                className={`p-2.5 rounded-xl transition-all duration-200 ${theme.hoverBg} ${theme.textSecondary} mb-3 hover:scale-110 active:scale-95`}
+                className={`p-2.5 rounded-xl transition-all duration-200 ${theme.hoverBg} ${theme.textSecondary} mb-3`}
               >
                 <PanelRight size={20} strokeWidth={2} />
               </button>
             </Tooltip>
 
-            <div className={`w-8 h-px ${isDark ? 'bg-gradient-to-r from-transparent via-gray-600 to-transparent' : 'bg-gradient-to-r from-transparent via-gray-300 to-transparent'} my-2`} />
+            <div className={`w-8 h-px bg-gradient-to-r from-transparent via-[#e7e5e4] to-transparent my-2`} />
 
             {studioTools.map((tool, index) => (
               <Tooltip key={index} text={tool.label} side="left">
                 <button
                   onClick={() => handleStudioToolClick(tool.label)}
-                  className={`relative p-2.5 rounded-xl transition-all duration-200 ${theme.hoverBg} mb-2 hover:scale-110 active:scale-95`}
+                  className={`relative p-2.5 rounded-xl transition-all duration-200 ${theme.hoverBg} mb-2`}
                 >
                   <tool.icon size={20} strokeWidth={2} className={tool.color} />
                   {tool.label === 'Flashcards' && flashcards.length > 0 && (
@@ -2833,16 +2902,16 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
               </Tooltip>
             ))}
 
-            <div className={`w-8 h-px ${isDark ? 'bg-gradient-to-r from-transparent via-gray-600 to-transparent' : 'bg-gradient-to-r from-transparent via-gray-300 to-transparent'} my-2`} />
+            <div className={`w-8 h-px bg-gradient-to-r from-transparent via-[#e7e5e4] to-transparent my-2`} />
 
             <Tooltip text="Notes" side="left">
               <button
                 onClick={() => { setRightPanelCollapsed(false); setShowNoteInput(true); }}
-                className={`relative p-2.5 rounded-xl transition-all duration-200 ${theme.hoverBg} ${theme.textSecondary} mb-2 hover:scale-110 active:scale-95 hover:text-primary`}
+                className={`relative p-2.5 rounded-xl transition-all duration-200 ${theme.hoverBg} ${theme.textSecondary} mb-2 hover:text-primary`}
               >
                 <StickyNote size={20} strokeWidth={2} />
                 {notes.length > 0 && (
-                  <span className={`absolute -top-1 -right-1 min-w-[16px] h-[16px] flex items-center justify-center text-[9px] font-bold rounded-full ${isDark ? 'bg-amber-500 text-white' : 'bg-amber-500 text-white'} shadow-lg`}>
+                  <span className={`absolute -top-1 -right-1 min-w-[16px] h-[16px] flex items-center justify-center text-[9px] font-bold rounded-full bg-[#d97757] text-white shadow-sm`}>
                     {notes.length}
                   </span>
                 )}
@@ -2862,10 +2931,9 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
         ))}
         onResize={showMindMap && !mindMapCanvasMode ? setRightPanelWidth : (showNoteInput || showFlashcards) ? () => { } : setRightPanelWidth}
         side="right"
-        isDark={isDark}
         collapsed={rightPanelCollapsed && !mindMapCanvasMode && !showMindMap}
       >
-        <div className={`h-full flex flex-col ${mindMapCanvasMode ? '' : theme.panelBg + ' backdrop-blur-xl rounded-2xl'} ${mindMapCanvasMode ? 'overflow-hidden' : ''}`}>
+        <div className={`h-full flex flex-col ${mindMapCanvasMode ? '' : theme.panelBg + ' rounded-xl'} ${mindMapCanvasMode ? 'overflow-hidden' : ''}`}>
           {/* Show Editor at TOP when note input is open - Hide everything else */}
           {showNoteInput ? (
             <div className="flex-1 flex flex-col h-full">
@@ -2880,7 +2948,7 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                       setEditingNoteId(null);
                       setShowNoteMenu(false);
                     }}
-                    className={`text-sm font-semibold tracking-wide uppercase ${theme.textSecondary} hover:text-amber-500 transition-colors`}
+                    className={`text-sm font-semibold tracking-wide uppercase ${theme.textSecondary} hover:text-[#d97757] transition-colors`}
                   >
                     Studio
                   </button>
@@ -2895,7 +2963,7 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                     <MoreVertical size={16} strokeWidth={2} />
                   </button>
                   {showNoteMenu && (
-                    <div className={`absolute top-full right-0 mt-1 w-52 rounded-lg shadow-xl border ${isDark ? 'bg-[#1a1a1a] border-white/10' : 'bg-white border-gray-200'} py-1 z-50`}>
+                    <div className={`absolute top-full right-0 mt-1 w-52 rounded-lg shadow-md border bg-white border-[#e7e5e4] py-1 z-50`}>
                       <button
                         onClick={async () => {
                           setShowNoteMenu(false);
@@ -2946,7 +3014,7 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                         )}
                         <span>Convert all notes to source</span>
                       </button>
-                      <div className={`my-1 border-t ${isDark ? 'border-white/10' : 'border-gray-200'}`} />
+                      <div className={`my-1 border-t border-[#e7e5e4]`} />
                       <button
                         onClick={() => {
                           setShowNoteMenu(false);
@@ -2959,7 +3027,7 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                             setEditingNoteId(null);
                           }
                         }}
-                        className={`w-full flex items-center gap-2 px-3 py-2 text-sm ${theme.hoverBg} text-red-400`}
+                        className={`w-full flex items-center gap-2 px-3 py-2 text-sm ${theme.hoverBg} text-destructive`}
                       >
                         <Trash size={16} strokeWidth={2} />
                         <span>{editingNoteId ? 'Delete note' : 'Discard'}</span>
@@ -2997,7 +3065,7 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                   <Redo2 size={16} strokeWidth={2} />
                 </button>
 
-                <div className={`w-px h-5 mx-1 ${isDark ? 'bg-gray-700' : 'bg-gray-300'}`} />
+                <div className={`w-px h-5 mx-1 bg-[#d6d3d1]`} />
 
                 {/* Format Dropdown */}
                 <div className="relative">
@@ -3009,7 +3077,7 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                     <ChevronDown size={12} />
                   </button>
                   {showFormatDropdown && (
-                    <div className={`absolute top-full left-0 mt-1 w-28 rounded-lg shadow-xl border ${isDark ? 'bg-[#1a1a1a] border-white/10' : 'bg-white border-gray-200'} py-1 z-50`}>
+                    <div className={`absolute top-full left-0 mt-1 w-28 rounded-lg shadow-md border bg-white border-[#e7e5e4] py-1 z-50`}>
                       {['Normal', 'Heading 1', 'Heading 2', 'Heading 3'].map((format) => (
                         <button
                           key={format}
@@ -3022,7 +3090,7 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                             else if (format === 'Heading 2') document.execCommand('formatBlock', false, 'h2');
                             else if (format === 'Heading 3') document.execCommand('formatBlock', false, 'h3');
                           }}
-                          className={`w-full px-3 py-1.5 text-left text-xs ${theme.hoverBg} ${selectedFormat === format ? 'text-amber-500' : theme.textSecondary}`}
+                          className={`w-full px-3 py-1.5 text-left text-xs ${theme.hoverBg} ${selectedFormat === format ? 'text-[#d97757]' : theme.textSecondary}`}
                         >
                           {format}
                         </button>
@@ -3031,7 +3099,7 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                   )}
                 </div>
 
-                <div className={`w-px h-5 mx-1 ${isDark ? 'bg-gray-700' : 'bg-gray-300'}`} />
+                <div className={`w-px h-5 mx-1 bg-[#d6d3d1]`} />
 
                 <button
                   onClick={() => { noteEditorRef.current?.focus(); document.execCommand('bold'); }}
@@ -3058,7 +3126,7 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                   <Link2 size={16} strokeWidth={2} />
                 </button>
 
-                <div className={`w-px h-5 mx-1 ${isDark ? 'bg-gray-700' : 'bg-gray-300'}`} />
+                <div className={`w-px h-5 mx-1 bg-[#d6d3d1]`} />
 
                 <button
                   onClick={() => { noteEditorRef.current?.focus(); document.execCommand('insertUnorderedList'); }}
@@ -3075,11 +3143,11 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                   <ListOrdered size={16} strokeWidth={2} />
                 </button>
 
-                <div className={`w-px h-5 mx-1 ${isDark ? 'bg-gray-700' : 'bg-gray-300'}`} />
+                <div className={`w-px h-5 mx-1 bg-[#d6d3d1]`} />
 
                 <button
                   onClick={() => { noteEditorRef.current?.focus(); document.execCommand('removeFormat'); }}
-                  className={`p-1.5 rounded-md transition-all ${theme.hoverBg} text-red-400`}
+                  className={`p-1.5 rounded-md transition-all ${theme.hoverBg} text-destructive`}
                   title="Clear Formatting"
                 >
                   <RemoveFormatting size={16} strokeWidth={2} />
@@ -3168,8 +3236,8 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                     </button>
                     <ChevronRight size={14} className={theme.textMuted} />
                     <div className="flex items-center gap-2">
-                      <div className={`p-1.5 rounded-lg ${isDark ? 'bg-emerald-500/10' : 'bg-emerald-500/10'}`}>
-                        <Brain size={14} strokeWidth={2} className={isDark ? 'text-emerald-400' : 'text-emerald-600'} />
+                      <div className={`p-1.5 rounded-lg bg-emerald-500/10`}>
+                        <Brain size={14} strokeWidth={2} className={'text-emerald-600'} />
                       </div>
                       <span className={`text-sm font-semibold ${theme.text}`}>Mindmap</span>
                     </div>
@@ -3184,12 +3252,12 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                     </button>
                     <ChevronRight size={14} className={theme.textMuted} />
                     <div className="flex items-center gap-2">
-                      <div className={`p-1.5 rounded-lg ${isDark ? 'bg-pink-500/10' : 'bg-pink-500/10'}`}>
-                        <BookOpen size={14} strokeWidth={2} className={isDark ? 'text-pink-400' : 'text-pink-600'} />
+                      <div className={`p-1.5 rounded-lg bg-pink-500/10`}>
+                        <BookOpen size={14} strokeWidth={2} className={'text-pink-600'} />
                       </div>
                       <span className={`text-sm font-semibold ${theme.text}`}>Flashcards</span>
                       {flashcards.length > 0 && (
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${isDark ? 'bg-pink-500/20 text-pink-400' : 'bg-pink-100 text-pink-600'}`}>
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-bold bg-pink-100 text-pink-600`}>
                           {flashcards.length}
                         </span>
                       )}
@@ -3197,7 +3265,7 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                   </div>
                 ) : (
                   <div className="flex items-center gap-2.5">
-                    <div className={`p-1.5 rounded-lg ${isDark ? 'bg-primary/10' : 'bg-primary/10'}`}>
+                    <div className={`p-1.5 rounded-lg bg-primary/10`}>
                       <Sparkles size={16} strokeWidth={2} className="text-primary" />
                     </div>
                     <h2 className={`text-sm font-semibold tracking-wide uppercase ${theme.textSecondary}`}>Studio</h2>
@@ -3247,13 +3315,13 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                     {mindMapLoading ? (
                       <div className="flex-1 flex flex-col items-center justify-center gap-4">
                         {/* Spinner */}
-                        <div className={`p-4 rounded-2xl ${isDark ? 'bg-emerald-500/10' : 'bg-emerald-50'}`}>
-                          <Loader2 size={32} className={`animate-spin ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} strokeWidth={2} />
+                        <div className={`p-4 rounded-xl bg-emerald-50`}>
+                          <Loader2 size={32} className={`animate-spin text-emerald-600`} strokeWidth={2} />
                         </div>
 
                         {/* Loading text */}
                         <div className="text-center">
-                          <p className={`text-base font-semibold ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
+                          <p className={`text-base font-semibold text-emerald-600`}>
                             Generating Mind Map
                           </p>
                           <p className={`text-sm mt-1 ${theme.textMuted}`}>
@@ -3266,7 +3334,7 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                           {[0, 1, 2].map(i => (
                             <div
                               key={i}
-                              className={`w-2 h-2 rounded-full animate-bounce ${isDark ? 'bg-emerald-400' : 'bg-emerald-500'}`}
+                              className={`w-2 h-2 rounded-full animate-bounce bg-emerald-500`}
                               style={{ animationDelay: `${i * 0.16}s` }}
                             />
                           ))}
@@ -3278,7 +3346,6 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                         expandedNodes={expandedNodes}
                         onNodeToggle={handleMindMapNodeToggle}
                         onNodeClick={handleMindMapNodeClick}
-                        isDark={isDark}
                         zoom={mindMapZoom}
                         setZoom={setMindMapZoom}
                         pan={mindMapPan}
@@ -3308,13 +3375,13 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                     {(flashcardsLoading || (flashcardsGenerating && flashcards.length === 0)) ? (
                       <div className="flex-1 flex flex-col items-center justify-center gap-4">
                         {/* Spinner */}
-                        <div className={`p-4 rounded-2xl ${isDark ? 'bg-amber-500/10' : 'bg-amber-50'}`}>
-                          <Loader2 size={32} className={`animate-spin ${isDark ? 'text-amber-400' : 'text-amber-600'}`} strokeWidth={2} />
+                        <div className={`p-4 rounded-xl bg-[#faf9f5]`}>
+                          <Loader2 size={32} className={`animate-spin text-[#d97757]`} strokeWidth={2} />
                         </div>
 
                         {/* Loading text */}
                         <div className="text-center">
-                          <p className={`text-base font-semibold ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>
+                          <p className={`text-base font-semibold text-[#d97757]`}>
                             Generating Flashcards
                           </p>
                           <p className={`text-sm mt-1 ${theme.textMuted}`}>
@@ -3327,7 +3394,7 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                           {[0, 1, 2].map(i => (
                             <div
                               key={i}
-                              className={`w-2 h-2 rounded-full ${isDark ? 'bg-amber-400' : 'bg-amber-500'}`}
+                              className={`w-2 h-2 rounded-full bg-[#d97757]`}
                               style={{
                                 animation: 'bounce 1.4s ease-in-out infinite',
                                 animationDelay: `${i * 0.16}s`
@@ -3344,31 +3411,25 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                           <button
                             onClick={handlePrevCard}
                             disabled={currentCardIndex === 0}
-                            className={`absolute left-0 p-2 rounded-full transition-all ${currentCardIndex === 0
+                              className={`absolute left-0 p-2 rounded-full transition-all ${currentCardIndex === 0
                               ? 'opacity-30 cursor-not-allowed'
-                              : `${theme.hoverBg} hover:scale-110`
-                              } ${isDark ? 'text-white' : 'text-gray-700'}`}
+                              : `${theme.hoverBg}`
+                              } text-[#292524]`}
                           >
                             <ChevronLeft size={24} />
                           </button>
 
                           {/* Centered Card with depth and polish */}
                           <div
-                            className={`w-full max-w-[280px] min-h-[220px] rounded-2xl p-5 flex flex-col justify-between relative transition-all duration-300 ${isDark
-                              ? 'bg-card border border-border shadow-2xl shadow-black/20'
-                              : 'bg-card border border-border shadow-xl shadow-amber-500/5'
-                              }`}
+                            className={`w-full max-w-[280px] min-h-[220px] rounded-xl p-5 flex flex-col justify-between relative transition-all duration-300 bg-card border border-border shadow-md`}
                             style={{
-                              boxShadow: isDark
-                                ? 'var(--shadow-xl)'
-                                : 'var(--shadow-lg)',
+                              boxShadow: 'var(--shadow-lg)',
                             }}
                           >
                             {/* Delete Button */}
                             <button
                               onClick={() => handleDeleteFlashcard(flashcards[currentCardIndex]?.id)}
-                              className={`absolute top-3 right-3 p-1.5 rounded-full opacity-40 hover:opacity-100 transition-all ${isDark ? 'hover:bg-red-500/20 text-red-400' : 'hover:bg-red-100 text-red-500'
-                                }`}
+                              className={`absolute top-3 right-3 p-1.5 rounded-full opacity-40 hover:opacity-100 transition-all hover:bg-destructive/10 text-destructive`}
                               title="Delete card"
                             >
                               <Trash2 size={14} />
@@ -3384,10 +3445,7 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                             {/* See Answer / See Question Button */}
                             <button
                               onClick={() => setShowAnswer(!showAnswer)}
-                              className={`w-full py-2.5 text-sm font-medium rounded-xl transition-all ${isDark
-                                ? 'text-gray-400 hover:text-amber-400 hover:bg-white/5'
-                                : 'text-gray-500 hover:text-amber-600 hover:bg-gray-100'
-                                }`}
+                              className={`w-full py-2.5 text-sm font-medium rounded-xl transition-all text-[#78716c] hover:text-[#d97757] hover:bg-[#f5f5f4]`}
                             >
                               {showAnswer ? 'See question' : 'See answer'}
                             </button>
@@ -3397,10 +3455,10 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                           <button
                             onClick={handleNextCard}
                             disabled={currentCardIndex === flashcards.length - 1}
-                            className={`absolute right-0 p-2 rounded-full transition-all ${currentCardIndex === flashcards.length - 1
+                              className={`absolute right-0 p-2 rounded-full transition-all ${currentCardIndex === flashcards.length - 1
                               ? 'opacity-30 cursor-not-allowed'
-                              : `${theme.hoverBg} hover:scale-110`
-                              } ${isDark ? 'text-white' : 'text-gray-700'}`}
+                              : `${theme.hoverBg}`
+                              } text-[#292524]`}
                           >
                             <ChevronRight size={24} />
                           </button>
@@ -3439,9 +3497,9 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                             >
                               <RefreshCw size={16} className={flashcardsGenerating ? 'animate-spin' : ''} />
                             </button>
-                            <div className="flex-1 h-1.5 rounded-full bg-gray-700/30 overflow-hidden">
+                            <div className="flex-1 h-1.5 rounded-full bg-[#57534e]/30 overflow-hidden">
                               <div
-                                className={`h-full rounded-full transition-all ${isDark ? 'bg-amber-400' : 'bg-amber-500'}`}
+                                className={`h-full rounded-full transition-all bg-[#d97757]`}
                                 style={{ width: `${((currentCardIndex + 1) / flashcards.length) * 100}%` }}
                               />
                             </div>
@@ -3480,16 +3538,16 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                             key={index}
                             onClick={() => handleStudioToolClick(tool.label)}
                             className={`flex flex-col items-center justify-center gap-2 p-3 rounded-xl border relative overflow-hidden
-                            ${theme.cardBg} ${theme.cardBorder} ${theme.hoverBg} transition-all hover:scale-[1.02]
-                            ${tool.label === 'Flashcards' && flashcards.length > 0 && !isFlashcardGenerating ? (isDark ? 'ring-1 ring-pink-500/50' : 'ring-1 ring-pink-400/50') : ''}
-                            ${tool.label === 'Mind Map' && mindMapData && !isMindMapGenerating ? (isDark ? 'ring-1 ring-emerald-500/50' : 'ring-1 ring-emerald-400/50') : ''}
-                            ${isGenerating ? (isDark ? 'ring-1 ring-amber-500/40' : 'ring-1 ring-amber-400/40') : ''}`}
+                            ${theme.cardBg} ${theme.cardBorder} ${theme.hoverBg} transition-all
+                            ${tool.label === 'Flashcards' && flashcards.length > 0 && !isFlashcardGenerating ? 'ring-1 ring-pink-400/50' : ''}
+                            ${tool.label === 'Mind Map' && mindMapData && !isMindMapGenerating ? 'ring-1 ring-emerald-400/50' : ''}
+                            ${isGenerating ? 'ring-1 ring-[#d97757]/40' : ''}`}
                           >
                             {/* Generating Animation Overlay - Simple version */}
                             {isGenerating && (
                               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                                <Loader2 size={20} className={`animate-spin ${isDark ? 'text-amber-400' : 'text-amber-600'}`} strokeWidth={2.5} />
-                                <span className={`text-[10px] mt-1.5 font-medium ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>
+                                <Loader2 size={20} className={`animate-spin text-[#d97757]`} strokeWidth={2.5} />
+                                <span className={`text-[10px] mt-1.5 font-medium text-[#d97757]`}>
                                   Generating...
                                 </span>
                               </div>
@@ -3498,12 +3556,12 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                             <span className={`text-xs text-center ${theme.textSecondary} ${isGenerating ? 'opacity-0' : ''}`}>
                               {tool.label}
                               {tool.label === 'Flashcards' && flashcards.length > 0 && !isFlashcardGenerating && (
-                                <span className={`ml-1 px-1 rounded text-[10px] ${isDark ? 'bg-pink-500/20 text-pink-400' : 'bg-pink-100 text-pink-600'}`}>
+                                <span className={`ml-1 px-1 rounded text-[10px] bg-pink-100 text-pink-600`}>
                                   {flashcards.length}
                                 </span>
                               )}
                               {tool.label === 'Mind Map' && mindMapData && !isMindMapGenerating && (
-                                <span className={`ml-1 px-1 rounded text-[10px] ${isDark ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-100 text-emerald-600'}`}>
+                                <span className={`ml-1 px-1 rounded text-[10px] bg-emerald-100 text-emerald-600`}>
                                   ✓
                                 </span>
                               )}
@@ -3517,12 +3575,12 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                     <div className="mt-6">
                       <div className="flex items-center justify-between mb-3 px-1">
                         <div className="flex items-center gap-2">
-                          <div className={`p-1 rounded-md ${isDark ? 'bg-amber-500/10' : 'bg-amber-500/10'}`}>
-                            <StickyNote size={14} strokeWidth={2} className="text-amber-500" />
+                          <div className={`p-1 rounded-md bg-[#d97757]/10`}>
+                            <StickyNote size={14} strokeWidth={2} className="text-[#d97757]" />
                           </div>
                           <h3 className={`text-xs font-semibold tracking-wide uppercase ${theme.textSecondary}`}>Notes</h3>
                           {notes.length > 0 && (
-                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${isDark ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-100 text-amber-600'}`}>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[#f5f5f4] text-[#d97757]`}>
                               {notes.length}
                             </span>
                           )}
@@ -3534,7 +3592,7 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                             setNoteContent('');
                             setEditingNoteId(null);
                           }}
-                          className={`p-1.5 rounded-lg transition-all duration-200 ${theme.hoverBg} ${theme.textMuted} hover:text-primary hover:scale-110`}
+                          className={`p-1.5 rounded-lg transition-all duration-200 ${theme.hoverBg} ${theme.textMuted} hover:text-primary`}
                         >
                           <Plus size={16} strokeWidth={2} />
                         </button>
@@ -3555,7 +3613,7 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                                 }
                               }}
                               className={`group relative p-3.5 rounded-xl border transition-all duration-200 cursor-pointer
-                                ${theme.cardBg} ${theme.cardBorder} hover:border-amber-500/40 hover:shadow-md hover:scale-[1.01] active:scale-[0.99]`}
+                                ${theme.cardBg} ${theme.cardBorder} hover:border-[#d97757]/40 hover:shadow-md`}
                             >
                               {/* Three dots menu button */}
                               <div className="absolute top-2.5 right-2.5" data-note-menu>
@@ -3564,7 +3622,7 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                                     e.stopPropagation();
                                     setShowNoteItemMenu(showNoteItemMenu === note.id ? null : note.id);
                                   }}
-                                  className={`p-1.5 rounded-md opacity-0 group-hover:opacity-100 ${showNoteItemMenu === note.id ? 'opacity-100' : ''} transition-all ${isDark ? 'hover:bg-white/10' : 'hover:bg-gray-100'}`}
+                                  className={`p-1.5 rounded-md opacity-0 group-hover:opacity-100 ${showNoteItemMenu === note.id ? 'opacity-100' : ''} transition-all hover:bg-[#f5f5f4]`}
                                 >
                                   <MoreVertical size={14} className={theme.textMuted} strokeWidth={2} />
                                 </button>
@@ -3572,8 +3630,8 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                                 {showNoteItemMenu === note.id && (
                                   <div
                                     data-note-menu
-                                    className={`absolute top-full right-0 mt-1 w-48 rounded-xl shadow-2xl border overflow-hidden
-                              ${isDark ? 'bg-[#252525] border-white/10' : 'bg-white border-gray-200'}`}
+                                    className={`absolute top-full right-0 mt-1 w-48 rounded-xl shadow-md border overflow-hidden
+                              bg-white border-[#e7e5e4]`}
                                     style={{ zIndex: 100 }}
                                   >
                                     {/* Convert to source - always creates new source */}
@@ -3585,13 +3643,13 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                                       }}
                                       disabled={processingNoteId !== null}
                                       className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm whitespace-nowrap transition-colors
-                                ${isDark ? 'hover:bg-white/5 text-gray-300' : 'hover:bg-gray-50 text-gray-700'}
+                                hover:bg-[#faf9f5] text-[#78716c]
                                 ${processingNoteId === note.id ? 'opacity-50' : ''}`}
                                     >
                                       {processingNoteId === note.id ? (
                                         <Loader2 size={16} strokeWidth={2} className="flex-shrink-0 animate-spin" />
                                       ) : (
-                                        <FileUp size={16} strokeWidth={2} className={`flex-shrink-0 ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
+                                        <FileUp size={16} strokeWidth={2} className={`flex-shrink-0 text-[#78716c]`} />
                                       )}
                                       <span>Convert to source</span>
                                     </button>
@@ -3603,7 +3661,7 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                                         setShowDeleteConfirm(note.id);
                                       }}
                                       className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors border-t
-                                ${isDark ? 'border-white/5 hover:bg-white/5 text-red-400' : 'border-gray-100 hover:bg-red-50 text-red-500'}`}
+                                border-[#e7e5e4] hover:bg-destructive/10 text-destructive`}
                                     >
                                       <Trash size={16} strokeWidth={2} />
                                       <span>Delete</span>
@@ -3619,8 +3677,8 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                           ))
                         ) : (
                           <div className={`text-center py-8 px-4 rounded-xl ${theme.cardBg} border ${theme.cardBorder}`}>
-                            <div className={`mx-auto w-12 h-12 rounded-xl ${isDark ? 'bg-amber-500/10' : 'bg-amber-100'} flex items-center justify-center mb-3`}>
-                              <StickyNote size={20} className="text-amber-500 opacity-60" strokeWidth={2} />
+                            <div className={`mx-auto w-12 h-12 rounded-xl bg-[#f5f5f4] flex items-center justify-center mb-3`}>
+                              <StickyNote size={20} className="text-[#d97757] opacity-60" strokeWidth={2} />
                             </div>
                             <p className={`text-xs font-medium mb-1 ${theme.text}`}>No notes yet</p>
                             <p className={`text-[10px] ${theme.textMuted} mb-3 opacity-70`}>Start taking notes</p>
@@ -3631,8 +3689,8 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                                 setNoteContent('');
                               }}
                               className={`inline-flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-medium
-                                ${isDark ? 'bg-amber-500/10 text-amber-400 hover:bg-amber-500/20' : 'bg-amber-100 text-amber-600 hover:bg-amber-200'}
-                                transition-all duration-200 hover:scale-105 active:scale-95`}
+                                bg-[#f5f5f4] text-[#d97757] hover:bg-[#e7e5e4]
+                                transition-all duration-200`}
                             >
                               <Plus size={12} strokeWidth={2} />
                               Add first note
@@ -3648,10 +3706,10 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
               {/* Delete Confirmation Modal */}
               {showDeleteConfirm && (
                 <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm">
-                  <div className={`w-full max-w-sm mx-4 rounded-2xl shadow-2xl ${isDark ? 'bg-[#1a1a1a] border border-white/10' : 'bg-white border border-gray-200'} p-6`}>
+                  <div className={`w-full max-w-sm mx-4 rounded-xl shadow-md bg-white border border-[#e7e5e4] p-6`}>
                     <div className="flex items-center gap-3 mb-4">
-                      <div className="p-2 rounded-full bg-red-500/10">
-                        <AlertTriangle size={24} className="text-red-500" />
+                      <div className="p-2 rounded-full bg-destructive/10">
+                        <AlertTriangle size={24} className="text-destructive" />
                       </div>
                       <h3 className={`text-lg font-semibold ${theme.text}`}>Delete Note?</h3>
                     </div>
@@ -3659,7 +3717,7 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                     <div className="flex justify-end gap-3">
                       <button
                         onClick={() => setShowDeleteConfirm(null)}
-                        className={`px-4 py-2 rounded-lg ${theme.hoverBg} ${theme.textSecondary}`}
+                        className={`px-4 py-2 rounded-lg text-[#78716c] hover:text-[#292524] hover:bg-[#f5f5f4]`}
                       >
                         Cancel
                       </button>
@@ -3672,7 +3730,7 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
                           setNoteTitle('New Note');
                           setEditingNoteId(null);
                         }}
-                        className="px-4 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white"
+                        className="px-4 py-2 rounded-lg bg-destructive hover:bg-destructive/90 text-destructive-foreground"
                       >
                         Delete
                       </button>
@@ -3689,10 +3747,10 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
       {
         showDeleteSourceConfirm !== null && (
           <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm">
-            <div className={`w-full max-w-sm mx-4 rounded-2xl shadow-2xl ${isDark ? 'bg-[#1a1a1a] border border-white/10' : 'bg-white border border-gray-200'} p-6`}>
+            <div className={`w-full max-w-sm mx-4 rounded-xl shadow-md bg-white border border-[#e7e5e4] p-6`}>
               <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 rounded-full bg-red-500/10">
-                  <AlertTriangle size={24} className="text-red-500" />
+                <div className="p-2 rounded-full bg-destructive/10">
+                  <AlertTriangle size={24} className="text-destructive" />
                 </div>
                 <h3 className={`text-lg font-semibold ${theme.text}`}>Remove Source?</h3>
               </div>
@@ -3702,13 +3760,13 @@ const ChatInterface = ({ conversationId, onConversationUpdate, isDark = false })
               <div className="flex justify-end gap-3">
                 <button
                   onClick={() => setShowDeleteSourceConfirm(null)}
-                  className={`px-4 py-2 rounded-lg ${theme.hoverBg} ${theme.textSecondary}`}
+                  className={`px-4 py-2 rounded-lg text-[#78716c] hover:text-[#292524] hover:bg-[#f5f5f4]`}
                 >
                   Cancel
                 </button>
                 <button
                   onClick={() => handleDeleteSource(showDeleteSourceConfirm)}
-                  className="px-4 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white"
+                  className="px-4 py-2 rounded-lg bg-destructive hover:bg-destructive/90 text-destructive-foreground"
                 >
                   Remove
                 </button>

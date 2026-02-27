@@ -138,7 +138,8 @@ async def edit_message(
                 for record in chat_history_records
             ]
 
-            hybrid_rag = HybridRAGProcessor()
+            conv_embedding_model = getattr(conversation, 'embedding_model', 'custom')
+            hybrid_rag = HybridRAGProcessor(conversation_id=conversation.id, embedding_model_name=conv_embedding_model)
             hybrid_rag.load_documents(chunk_dicts)
             hybrid_rag.load_chat_history(chat_history)
 

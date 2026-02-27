@@ -56,7 +56,8 @@ def list_conversations(
                 created_at=convo.created_at,
                 updated_at=convo.updated_at,
                 last_message=last_message,
-                llm_mode=getattr(convo, "llm_mode", "api")
+                llm_mode=getattr(convo, "llm_mode", "api"),
+                embedding_model=getattr(convo, "embedding_model", "custom")
             )
         )
     return summaries
@@ -113,7 +114,8 @@ def get_conversation(
         created_at=conversation.created_at,
         updated_at=conversation.updated_at,
         last_message=conversation.messages[-1].content if conversation.messages else None,
-        llm_mode=getattr(conversation, "llm_mode", "api")
+        llm_mode=getattr(conversation, "llm_mode", "api"),
+        embedding_model=getattr(conversation, "embedding_model", "custom")
     )
 
     response_groups = {}
@@ -190,6 +192,7 @@ def get_conversation(
         messages=messages,
         documents=documents,
         llm_mode=getattr(conversation, "llm_mode", "api"),
+        embedding_model=getattr(conversation, "embedding_model", "custom"),
     )
 
 @router.delete("/conversations/{conversation_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -208,7 +211,7 @@ def delete_conversation(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
 
     try:
-        vector_store = QdrantVectorStore(conversation_id)
+        vector_store = QdrantVectorStore(conversation_id, getattr(conversation, 'embedding_model', 'custom'))
         vector_store.delete_by_conversation()
     except Exception:
         pass
@@ -244,7 +247,7 @@ def delete_document(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
 
     try:
-        vector_store = QdrantVectorStore(conversation_id)
+        vector_store = QdrantVectorStore(conversation_id, getattr(conversation, 'embedding_model', 'custom'))
         vector_store.delete_by_document(document_id)
     except Exception:
         pass
@@ -382,7 +385,7 @@ def convert_note_to_source(
         db.query(DocumentChunk).filter(DocumentChunk.document_id == note_id).delete()
         
         try:
-            vector_store = QdrantVectorStore(conversation_id)
+            vector_store = QdrantVectorStore(conversation_id, getattr(conversation, 'embedding_model', 'custom'))
             vector_store.delete_by_document(note_id)
         except Exception:
             pass
@@ -407,7 +410,7 @@ def convert_note_to_source(
         try:
             text_data = {note_doc.filename: note_doc.content}
             source_to_doc_id = {note_doc.filename: note_doc.id}
-            vector_store = QdrantVectorStore(conversation_id)
+            vector_store = QdrantVectorStore(conversation_id, getattr(conversation, 'embedding_model', 'custom'))
             vector_store.add_documents(text_data, source_to_doc_id)
             embeddings_success = True
         except Exception as e:
@@ -464,6 +467,13 @@ def unconvert_note_from_source(
 
         # Delete all chunks for this note
         deleted_count = db.query(DocumentChunk).filter(DocumentChunk.document_id == note_id).delete()
+        
+        # Also delete vectors from Qdrant
+        try:
+            vector_store = QdrantVectorStore(conversation_id, getattr(conversation, 'embedding_model', 'custom'))
+            vector_store.delete_by_document(note_id)
+        except Exception:
+            pass
         
         # Mark the note as no longer having embeddings
         note_doc.has_embeddings = False

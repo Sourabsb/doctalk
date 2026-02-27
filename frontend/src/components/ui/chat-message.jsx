@@ -59,13 +59,13 @@ const ChatMessage = React.forwardRef(({
                         className={cn(
                             "relative px-4 py-3 text-sm leading-relaxed",
                             isUser
-                                ? "bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-2xl rounded-tr-sm shadow-lg shadow-amber-500/20"
-                                : "bg-white/70 dark:bg-white/5 backdrop-blur-xl border border-border/50 dark:border-white/10 rounded-2xl rounded-tl-sm shadow-md",
+                                ? "bg-primary text-white rounded-2xl rounded-tr-sm shadow-sm"
+                                : "bg-white border border-border rounded-2xl rounded-tl-sm shadow-sm",
                             isStreaming && "streaming-cursor"
                         )}
                     >
                         {children || (
-                            <div className={cn("prose prose-sm max-w-none", isUser ? "prose-invert" : "dark:prose-invert")}>
+                            <div className={cn("prose prose-sm max-w-none", isUser && "prose-invert")}>
                                 {content}
                             </div>
                         )}
@@ -209,7 +209,7 @@ const ChatMessageLoading = ({ className, ...props }) => (
         <Avatar size="sm" className="shrink-0 mt-0.5">
             <AvatarFallback>AI</AvatarFallback>
         </Avatar>
-        <div className="bg-white/70 dark:bg-white/5 backdrop-blur-xl border border-border/50 dark:border-white/10 rounded-2xl rounded-tl-sm px-4 py-3 shadow-md">
+        <div className="bg-white border border-border rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">
             <div className="flex gap-1.5">
                 {[0, 1, 2].map((i) => (
                     <span

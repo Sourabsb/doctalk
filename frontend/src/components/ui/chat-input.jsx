@@ -59,11 +59,11 @@ const ChatInput = React.forwardRef(({
             <div
                 className={cn(
                     "relative flex flex-col",
-                    "bg-white/70 dark:bg-white/5 backdrop-blur-2xl",
-                    "border-2 border-border/50 dark:border-white/10",
-                    "rounded-2xl shadow-xl",
+                    "bg-white",
+                    "border border-border",
+                    "rounded-xl shadow-sm",
                     "transition-all duration-300",
-                    "hover:border-primary/30 hover:shadow-2xl hover:shadow-primary/5",
+                    "hover:border-primary/30 hover:shadow-md",
                     "focus-within:border-primary/50 focus-within:ring-4 focus-within:ring-primary/10",
                     disabled && "opacity-50 cursor-not-allowed",
                     className

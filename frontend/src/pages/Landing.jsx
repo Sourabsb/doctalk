@@ -6,28 +6,13 @@ const Landing = () => {
   const navigate = useNavigate()
   const { isAuthenticated, isVerifying } = useAuth()
 
-  // Initialize theme from localStorage
-  const [isDark, setIsDark] = useState(() => {
-    const saved = localStorage.getItem('doctalk-theme')
-    if (saved === 'light') return false
-    if (saved === 'dark') return true
-    return true // default to dark
-  })
-
   const [activeSlide, setActiveSlide] = useState(0)
   const [isAnimating, setIsAnimating] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
   const [featureAnimFrame, setFeatureAnimFrame] = useState(0)
 
-  // Save theme to localStorage whenever it changes
-  useEffect(() => {
-    localStorage.setItem('doctalk-theme', isDark ? 'dark' : 'light')
-  }, [isDark])
-
   const handleTry = () => {
-    // If still verifying, wait for it to complete
     if (isVerifying) return
-    // Only go to app if actually authenticated (token verified)
     navigate(isAuthenticated ? '/app' : '/signin')
   }
 
@@ -181,69 +166,49 @@ const Landing = () => {
   ]
 
   const theme = {
-    bg: isDark ? 'bg-[#0a0a0a]' : 'bg-[#fefcf9]',
-    text: isDark ? 'text-white' : 'text-gray-900',
-    textMuted: isDark ? 'text-gray-400' : 'text-gray-600',
-    textSubtle: isDark ? 'text-gray-500' : 'text-gray-500',
-    card: isDark ? 'bg-white/[0.03] border-white/10 backdrop-blur-xl' : 'bg-white/70 border-amber-100/50 backdrop-blur-xl',
-    cardHover: isDark ? 'hover:bg-white/[0.06] hover:border-white/20' : 'hover:bg-white/90 hover:border-amber-200',
-    navBg: isDark ? 'bg-black/40 backdrop-blur-2xl' : 'bg-white/60 backdrop-blur-2xl',
-    accent: 'from-amber-300 to-amber-500',
-    accentLight: 'from-amber-200 to-amber-400',
-    accentText: isDark ? 'text-amber-300' : 'text-amber-600',
-    btnPrimary: 'bg-gradient-to-r from-amber-300 to-amber-500',
-    btnSecondary: isDark ? 'bg-white/5 border-white/10 hover:bg-white/10' : 'bg-amber-50/80 border-amber-200/50 hover:bg-amber-100/80',
-    divider: isDark ? 'border-white/5' : 'border-amber-100/50',
-    glass: isDark ? 'bg-white/[0.02] backdrop-blur-3xl' : 'bg-white/40 backdrop-blur-3xl',
+    bg: 'bg-[#faf9f5]',
+    text: 'text-[#292524]',
+    textMuted: 'text-[#78716c]',
+    textSubtle: 'text-[#a8a29e]',
+    card: 'bg-white border-[#e7e5e4]',
+    cardHover: 'hover:border-[#d6d3d1] hover:shadow-md',
+    navBg: 'bg-[#faf9f5]/95 backdrop-blur-md',
+    accentText: 'text-[#d97757]',
+    btnPrimary: 'bg-[#d97757] hover:bg-[#c4684a]',
+    btnSecondary: 'bg-white border-[#e7e5e4] hover:bg-[#f5f5f4]',
+    divider: 'border-[#e7e5e4]',
   }
 
   return (
-    <div className={`min-h-screen ${theme.bg} ${theme.text} transition-colors duration-500 relative`}>
+    <div className={`min-h-screen ${theme.bg} ${theme.text} relative`}>
 
-      {/* Glass background with ambient glow */}
+      {/* Subtle background */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className={`absolute inset-0 ${isDark ? 'bg-gradient-to-br from-amber-950/20 via-transparent to-orange-950/10' : 'bg-gradient-to-br from-amber-100/30 via-transparent to-orange-50/20'}`} />
-        <div className={`absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[600px] ${isDark ? 'bg-amber-500/8' : 'bg-amber-300/15'} blur-[180px] rounded-full`} />
-        <div className={`absolute bottom-0 right-0 w-[600px] h-[400px] ${isDark ? 'bg-orange-500/5' : 'bg-orange-200/10'} blur-[150px] rounded-full`} />
-        <div className={`absolute top-1/2 left-0 w-[400px] h-[400px] ${isDark ? 'bg-amber-400/5' : 'bg-amber-200/10'} blur-[120px] rounded-full`} />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#faf9f5] via-white/50 to-[#faf9f5]" />
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-[#d97757]/[0.04] blur-[120px] rounded-full" />
       </div>
 
       {/* Navigation */}
-      <header className={`sticky top-0 z-50 ${theme.navBg} border-b ${theme.divider} transition-all duration-500`}>
+      <header className={`sticky top-0 z-50 ${theme.navBg} border-b ${theme.divider}`}>
         <div className="max-w-7xl mx-auto px-8 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2.5 cursor-pointer" onClick={() => navigate('/')}>
-            <img 
-              src="/img/icon.png" 
-              alt="DocTalk Logo" 
+            <img
+              src="/img/icon.png"
+              alt="DocTalk Logo"
               className="w-8 h-8 object-contain"
             />
             <span className={`text-lg font-semibold tracking-tight ${theme.text}`}>DocTalk</span>
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setIsDark(!isDark)}
-              className={`p-2 rounded-full ${theme.btnSecondary} transition-all duration-300 border`}
-              aria-label="Toggle theme"
-            >
-              {isDark ? (
-                <svg className="w-4 h-4 text-amber-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
-                </svg>
-              ) : (
-                <svg className="w-4 h-4 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-                </svg>
-              )}
-            </button>
-            <button
               onClick={() => navigate('/signin')}
-              className={`text-sm ${theme.textMuted} hover:${theme.text} transition px-3 py-1.5`}
+              className={`text-sm ${theme.textMuted} hover:text-[#292524] transition px-3 py-1.5`}
             >
               Sign in
             </button>
             <button
               onClick={() => navigate('/signup')}
-              className={`text-sm font-medium ${theme.btnPrimary} text-gray-900 rounded-full px-5 py-2 transition shadow-md shadow-amber-500/20 hover:shadow-amber-500/30`}
+              className={`text-sm font-medium ${theme.btnPrimary} text-white rounded-lg px-5 py-2 transition-colors`}
             >
               Get started
             </button>
@@ -251,36 +216,33 @@ const Landing = () => {
         </div>
       </header>
 
-      {/* Hero Section - Full screen height */}
+      {/* Hero Section */}
       <section className="relative z-10 max-w-5xl mx-auto px-8 min-h-[calc(100vh-80px)] flex flex-col items-center justify-center text-center">
-        <p className={`text-4xl md:text-5xl font-semibold mb-6`}>
+        <p className="text-4xl md:text-5xl font-semibold mb-6">
           <span className={theme.text}>Meet </span>
-          <span className="bg-gradient-to-r from-amber-400 via-orange-500 to-amber-400 bg-[length:200%_auto] animate-gradient bg-clip-text text-transparent">DocTalk</span>
+          <span className="text-[#d97757]">DocTalk</span>
         </p>
-        <h1 className="text-5xl md:text-7xl font-bold leading-[1.1] tracking-tight mb-8">
-          <span className="bg-gradient-to-r from-amber-300 via-orange-400 to-amber-300 bg-[length:200%_auto] animate-gradient bg-clip-text text-transparent">
-            Your AI Document Assistant
-          </span>
+        <h1 className={`text-5xl md:text-7xl font-bold leading-[1.1] tracking-tight mb-8 ${theme.text}`}>
+          Your AI Document Assistant
         </h1>
         <p className={`text-xl md:text-2xl ${theme.textMuted} max-w-3xl mx-auto mb-14 leading-relaxed`}>
           Transform any document into intelligent conversations. Upload, ask questions, and get instant AI-powered insights.
         </p>
         <button
           onClick={handleTry}
-          className={`${theme.btnPrimary} text-gray-900 font-semibold px-12 py-4 rounded-full shadow-xl shadow-amber-500/25 hover:shadow-amber-500/40 hover:scale-[1.02] transition-all duration-300 text-lg`}
+          className={`${theme.btnPrimary} text-white font-semibold px-12 py-4 rounded-xl shadow-sm transition-colors text-lg`}
         >
           Try DocTalk
         </button>
       </section>
 
-      {/* Slideshow Section - with navigation arrows */}
+      {/* Slideshow Section */}
       <section className="relative z-10 max-w-6xl mx-auto px-8 py-24">
         <h2 className={`text-4xl font-bold text-center mb-4 ${theme.text}`}>Your AI-Powered Research Partner</h2>
         <p className={`text-center ${theme.textMuted} mb-16 text-lg`}>
           A seamless workflow from upload to insight
         </p>
 
-        {/* Slide Container with arrows */}
         <div
           className="relative group"
           onMouseEnter={() => setIsHovered(true)}
@@ -289,7 +251,7 @@ const Landing = () => {
           {/* Left Arrow */}
           <button
             onClick={prevSlide}
-            className={`absolute left-0 top-1/2 -translate-y-1/2 -translate-x-4 z-20 w-12 h-12 rounded-full ${theme.card} border flex items-center justify-center opacity-0 group-hover:opacity-100 group-hover:-translate-x-6 transition-all duration-300 hover:scale-110 ${theme.accentText}`}
+            className={`absolute left-0 top-1/2 -translate-y-1/2 -translate-x-4 z-20 w-12 h-12 rounded-full bg-white border border-[#e7e5e4] shadow-sm flex items-center justify-center opacity-0 group-hover:opacity-100 group-hover:-translate-x-6 transition-all duration-300 ${theme.accentText}`}
           >
             <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -299,7 +261,7 @@ const Landing = () => {
           {/* Right Arrow */}
           <button
             onClick={nextSlide}
-            className={`absolute right-0 top-1/2 -translate-y-1/2 translate-x-4 z-20 w-12 h-12 rounded-full ${theme.card} border flex items-center justify-center opacity-0 group-hover:opacity-100 group-hover:translate-x-6 transition-all duration-300 hover:scale-110 ${theme.accentText}`}
+            className={`absolute right-0 top-1/2 -translate-y-1/2 translate-x-4 z-20 w-12 h-12 rounded-full bg-white border border-[#e7e5e4] shadow-sm flex items-center justify-center opacity-0 group-hover:opacity-100 group-hover:translate-x-6 transition-all duration-300 ${theme.accentText}`}
           >
             <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -309,7 +271,7 @@ const Landing = () => {
           {/* Slide Content */}
           <div className="grid md:grid-cols-2 gap-16 items-center min-h-[350px] px-8">
             <div className={`space-y-6 transition-all duration-300 ${isAnimating ? 'opacity-0 translate-x-4' : 'opacity-100 translate-x-0'}`}>
-              <div className={`w-14 h-14 rounded-2xl ${isDark ? 'bg-amber-400/10' : 'bg-amber-100'} flex items-center justify-center ${theme.accentText}`}>
+              <div className="w-14 h-14 rounded-2xl bg-[#d97757]/10 flex items-center justify-center text-[#d97757]">
                 {slides[activeSlide].icon}
               </div>
               <h3 className={`text-3xl font-semibold ${theme.text}`}>{slides[activeSlide].title}</h3>
@@ -317,16 +279,16 @@ const Landing = () => {
             </div>
 
             {/* Preview Card */}
-            <div className={`rounded-3xl ${theme.card} border p-8 shadow-2xl transition-all duration-300 ${isAnimating ? 'scale-95 opacity-80' : 'scale-100 opacity-100'}`}>
+            <div className={`rounded-2xl bg-white border border-[#e7e5e4] p-8 shadow-sm transition-all duration-300 ${isAnimating ? 'scale-95 opacity-80' : 'scale-100 opacity-100'}`}>
               <div className="flex items-center gap-2 mb-6">
                 <div className="w-3 h-3 rounded-full bg-red-400/60" />
-                <div className="w-3 h-3 rounded-full bg-amber-400/60" />
+                <div className="w-3 h-3 rounded-full bg-[#d97757]/60" />
                 <div className="w-3 h-3 rounded-full bg-green-400/60" />
               </div>
-              <div className={`rounded-2xl ${isDark ? 'bg-gradient-to-br from-amber-400/10 via-amber-500/5 to-transparent' : 'bg-gradient-to-br from-amber-100 via-amber-50 to-white'} p-10 min-h-[220px] flex items-center justify-center`}>
+              <div className="rounded-xl bg-[#f5f5f4] p-10 min-h-[220px] flex items-center justify-center">
                 <div className="text-center space-y-5">
-                  <div className={`w-20 h-20 mx-auto rounded-full bg-gradient-to-br ${theme.accent} shadow-lg shadow-amber-500/30 flex items-center justify-center transition-transform duration-300 ${isAnimating ? 'scale-90 rotate-12' : 'scale-100 rotate-0'}`}>
-                    <span className="text-gray-900">{slides[activeSlide].icon}</span>
+                  <div className={`w-20 h-20 mx-auto rounded-full bg-[#d97757] shadow-md flex items-center justify-center transition-transform duration-300 ${isAnimating ? 'scale-90 rotate-12' : 'scale-100 rotate-0'}`}>
+                    <span className="text-white">{slides[activeSlide].icon}</span>
                   </div>
                   <p className={`${theme.textMuted} font-medium`}>{slides[activeSlide].title}</p>
                 </div>
@@ -342,8 +304,8 @@ const Landing = () => {
               key={idx}
               onClick={() => goToSlide(idx)}
               className={`h-2 rounded-full transition-all duration-300 ${idx === activeSlide
-                ? `w-10 bg-gradient-to-r ${theme.accent}`
-                : `w-2 ${isDark ? 'bg-white/20 hover:bg-white/30' : 'bg-amber-200 hover:bg-amber-300'}`
+                ? 'w-10 bg-[#d97757]'
+                : 'w-2 bg-[#e7e5e4] hover:bg-[#d6d3d1]'
                 }`}
             />
           ))}
@@ -357,24 +319,24 @@ const Landing = () => {
 
         <div className="grid md:grid-cols-3 gap-10">
           {/* Power Study Card */}
-          <div className={`p-8 rounded-3xl transition-all duration-300 hover:scale-[1.02] ${theme.card} border group overflow-hidden`}>
+          <div className="p-8 rounded-2xl transition-all duration-300 bg-white border border-[#e7e5e4] hover:border-[#d6d3d1] hover:shadow-md group overflow-hidden">
             {/* Animated visual area */}
-            <div className={`w-full h-44 rounded-2xl ${isDark ? 'bg-gradient-to-br from-amber-500/10 via-orange-500/5 to-transparent' : 'bg-gradient-to-br from-amber-50 via-orange-50/50 to-white'} flex items-center justify-center mb-6 relative overflow-hidden`}>
+            <div className="w-full h-44 rounded-xl bg-[#f5f5f4] flex items-center justify-center mb-6 relative overflow-hidden">
               {/* Multiple books with visible page flipping */}
               <div className="relative flex items-end justify-center gap-3">
 
-                {/* Small Book - Left (closed, tilted) */}
+                {/* Small Book - Left */}
                 <div
                   className="relative"
                   style={{
                     transform: `rotate(-12deg) translateY(${Math.sin(featureAnimFrame * 0.08) * 3}px)`
                   }}
                 >
-                  <div className={`w-8 h-14 ${isDark ? 'bg-orange-400' : 'bg-orange-300'} rounded-sm shadow-lg relative`}>
-                    <div className={`absolute left-0 top-0 w-1 h-full ${isDark ? 'bg-orange-600' : 'bg-orange-400'} rounded-l-sm`} />
+                  <div className="w-8 h-14 bg-[#e8a088] rounded-sm shadow-lg relative">
+                    <div className="absolute left-0 top-0 w-1 h-full bg-[#c4684a] rounded-l-sm" />
                     <div className="absolute inset-1 flex flex-col justify-center gap-0.5">
                       {[...Array(3)].map((_, i) => (
-                        <div key={i} className={`h-0.5 ${isDark ? 'bg-orange-200/50' : 'bg-orange-100'} rounded mx-0.5`} />
+                        <div key={i} className="h-0.5 bg-[#d97757]/30 rounded mx-0.5" />
                       ))}
                     </div>
                   </div>
@@ -382,38 +344,36 @@ const Landing = () => {
 
                 {/* Main Open Book - Center with flipping pages */}
                 <div className="relative" style={{ perspective: '500px' }}>
-                  {/* Book base/spine */}
-                  <div className={`w-28 h-20 relative`}>
+                  <div className="w-28 h-20 relative">
                     {/* Center spine */}
-                    <div className={`absolute left-1/2 -translate-x-1/2 top-0 w-2 h-full ${isDark ? 'bg-amber-700' : 'bg-amber-400'} rounded-sm z-20`} />
+                    <div className="absolute left-1/2 -translate-x-1/2 top-0 w-2 h-full bg-[#d97757] rounded-sm z-20" />
 
-                    {/* Left page (static) */}
-                    <div className={`absolute left-0 top-0 w-14 h-20 ${isDark ? 'bg-amber-100' : 'bg-white'} rounded-l-md shadow-md`}>
+                    {/* Left page */}
+                    <div className="absolute left-0 top-0 w-14 h-20 bg-white rounded-l-md shadow-md">
                       <div className="p-2 space-y-1.5">
                         {[...Array(6)].map((_, i) => (
-                          <div key={i} className={`h-1 ${isDark ? 'bg-amber-300/60' : 'bg-amber-200'} rounded`} style={{ width: `${70 + (i % 3) * 10}%`, marginLeft: 'auto' }} />
+                          <div key={i} className="h-1 bg-[#d97757]/20 rounded" style={{ width: `${70 + (i % 3) * 10}%`, marginLeft: 'auto' }} />
                         ))}
                       </div>
                     </div>
 
-                    {/* Right page (static) */}
-                    <div className={`absolute right-0 top-0 w-14 h-20 ${isDark ? 'bg-amber-100' : 'bg-white'} rounded-r-md shadow-md`}>
+                    {/* Right page */}
+                    <div className="absolute right-0 top-0 w-14 h-20 bg-white rounded-r-md shadow-md">
                       <div className="p-2 space-y-1.5">
                         {[...Array(6)].map((_, i) => (
-                          <div key={i} className={`h-1 ${isDark ? 'bg-amber-300/60' : 'bg-amber-200'} rounded`} style={{ width: `${60 + (i % 3) * 12}%` }} />
+                          <div key={i} className="h-1 bg-[#d97757]/20 rounded" style={{ width: `${60 + (i % 3) * 12}%` }} />
                         ))}
                       </div>
                     </div>
 
-                    {/* Flipping page - animates from right to left */}
+                    {/* Flipping page */}
                     {(() => {
                       const flipProgress = (featureAnimFrame * 3) % 360
                       const rotation = Math.min(flipProgress, 180)
-                      const isFlipping = flipProgress < 180
 
                       return (
                         <div
-                          className={`absolute top-0 w-14 h-20 rounded-md shadow-lg z-30`}
+                          className="absolute top-0 w-14 h-20 rounded-md shadow-lg z-30"
                           style={{
                             left: '50%',
                             transformOrigin: 'left center',
@@ -421,25 +381,23 @@ const Landing = () => {
                             transformStyle: 'preserve-3d',
                           }}
                         >
-                          {/* Front of page */}
                           <div
-                            className={`absolute inset-0 ${isDark ? 'bg-amber-50' : 'bg-white'} rounded-r-md backface-hidden`}
+                            className="absolute inset-0 bg-white rounded-r-md"
                             style={{ backfaceVisibility: 'hidden' }}
                           >
                             <div className="p-2 space-y-1.5">
                               {[...Array(6)].map((_, i) => (
-                                <div key={i} className={`h-1 ${isDark ? 'bg-amber-400/50' : 'bg-amber-300'} rounded`} style={{ width: `${50 + (i % 4) * 12}%` }} />
+                                <div key={i} className="h-1 bg-[#d97757]/30 rounded" style={{ width: `${50 + (i % 4) * 12}%` }} />
                               ))}
                             </div>
                           </div>
-                          {/* Back of page */}
                           <div
-                            className={`absolute inset-0 ${isDark ? 'bg-amber-100' : 'bg-gray-50'} rounded-l-md`}
+                            className="absolute inset-0 bg-[#faf9f5] rounded-l-md"
                             style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}
                           >
                             <div className="p-2 space-y-1.5">
                               {[...Array(6)].map((_, i) => (
-                                <div key={i} className={`h-1 ${isDark ? 'bg-amber-300/40' : 'bg-gray-200'} rounded`} style={{ width: `${60 + (i % 3) * 10}%`, marginLeft: 'auto' }} />
+                                <div key={i} className="h-1 bg-[#d6d3d1] rounded" style={{ width: `${60 + (i % 3) * 10}%`, marginLeft: 'auto' }} />
                               ))}
                             </div>
                           </div>
@@ -447,14 +405,14 @@ const Landing = () => {
                       )
                     })()}
 
-                    {/* Second flipping page (offset timing) */}
+                    {/* Second flipping page */}
                     {(() => {
                       const flipProgress = ((featureAnimFrame * 3) + 120) % 360
                       const rotation = Math.min(flipProgress, 180)
 
                       return (
                         <div
-                          className={`absolute top-0 w-14 h-20 rounded-md shadow-lg z-25`}
+                          className="absolute top-0 w-14 h-20 rounded-md shadow-lg z-25"
                           style={{
                             left: '50%',
                             transformOrigin: 'left center',
@@ -463,22 +421,22 @@ const Landing = () => {
                           }}
                         >
                           <div
-                            className={`absolute inset-0 ${isDark ? 'bg-orange-50' : 'bg-amber-50'} rounded-r-md`}
+                            className="absolute inset-0 bg-[#faf9f5] rounded-r-md"
                             style={{ backfaceVisibility: 'hidden' }}
                           >
                             <div className="p-2 space-y-1.5">
                               {[...Array(6)].map((_, i) => (
-                                <div key={i} className={`h-1 ${isDark ? 'bg-orange-300/50' : 'bg-amber-200'} rounded`} style={{ width: `${55 + (i % 3) * 15}%` }} />
+                                <div key={i} className="h-1 bg-[#d97757]/25 rounded" style={{ width: `${55 + (i % 3) * 15}%` }} />
                               ))}
                             </div>
                           </div>
                           <div
-                            className={`absolute inset-0 ${isDark ? 'bg-orange-100' : 'bg-amber-100'} rounded-l-md`}
+                            className="absolute inset-0 bg-[#f0d9cf] rounded-l-md"
                             style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}
                           >
                             <div className="p-2 space-y-1.5">
                               {[...Array(6)].map((_, i) => (
-                                <div key={i} className={`h-1 ${isDark ? 'bg-orange-200/40' : 'bg-amber-200/60'} rounded`} style={{ width: `${65 + (i % 2) * 10}%`, marginLeft: 'auto' }} />
+                                <div key={i} className="h-1 bg-[#d97757]/20 rounded" style={{ width: `${65 + (i % 2) * 10}%`, marginLeft: 'auto' }} />
                               ))}
                             </div>
                           </div>
@@ -488,7 +446,7 @@ const Landing = () => {
                   </div>
                 </div>
 
-                {/* Medium Book - Right (slightly open) */}
+                {/* Medium Book - Right */}
                 <div
                   className="relative"
                   style={{
@@ -496,42 +454,38 @@ const Landing = () => {
                     perspective: '300px'
                   }}
                 >
-                  <div className={`w-12 h-16 relative`}>
-                    {/* Spine */}
-                    <div className={`absolute left-1/2 -translate-x-1/2 top-0 w-1 h-full ${isDark ? 'bg-amber-600' : 'bg-amber-400'} z-10`} />
-                    {/* Left cover */}
+                  <div className="w-12 h-16 relative">
+                    <div className="absolute left-1/2 -translate-x-1/2 top-0 w-1 h-full bg-[#d97757] z-10" />
                     <div
-                      className={`absolute left-0 top-0 w-6 h-16 ${isDark ? 'bg-amber-500' : 'bg-amber-300'} rounded-l-sm shadow-md origin-right`}
+                      className="absolute left-0 top-0 w-6 h-16 bg-[#e8a088] rounded-l-sm shadow-md origin-right"
                       style={{ transform: 'rotateY(-30deg)' }}
                     />
-                    {/* Right cover */}
                     <div
-                      className={`absolute right-0 top-0 w-6 h-16 ${isDark ? 'bg-amber-500' : 'bg-amber-300'} rounded-r-sm shadow-md origin-left`}
+                      className="absolute right-0 top-0 w-6 h-16 bg-[#e8a088] rounded-r-sm shadow-md origin-left"
                       style={{ transform: 'rotateY(30deg)' }}
                     />
-                    {/* Page peek */}
-                    <div className={`absolute left-1 top-1 w-4 h-14 ${isDark ? 'bg-amber-100' : 'bg-white'} rounded-l-sm origin-right`} style={{ transform: 'rotateY(-20deg)' }} />
+                    <div className="absolute left-1 top-1 w-4 h-14 bg-white rounded-l-sm origin-right" style={{ transform: 'rotateY(-20deg)' }} />
                   </div>
                 </div>
 
-                {/* Tiny book - Far right */}
+                {/* Tiny book */}
                 <div
                   className="relative"
                   style={{
                     transform: `rotate(15deg) translateY(${Math.sin((featureAnimFrame + 40) * 0.1) * 2}px)`
                   }}
                 >
-                  <div className={`w-6 h-10 ${isDark ? 'bg-orange-500' : 'bg-orange-400'} rounded-sm shadow-md`}>
-                    <div className={`absolute left-0 top-0 w-0.5 h-full ${isDark ? 'bg-orange-700' : 'bg-orange-500'}`} />
+                  <div className="w-6 h-10 bg-[#d97757] rounded-sm shadow-md">
+                    <div className="absolute left-0 top-0 w-0.5 h-full bg-[#c4684a]" />
                   </div>
                 </div>
               </div>
 
-              {/* Floating sparkles/highlights */}
+              {/* Floating sparkles */}
               {[...Array(4)].map((_, i) => (
                 <div
                   key={i}
-                  className={`absolute w-2 h-2 rounded-full ${isDark ? 'bg-amber-400/60' : 'bg-amber-400/80'}`}
+                  className="absolute w-2 h-2 rounded-full bg-[#d97757]/60"
                   style={{
                     left: `${25 + i * 18}%`,
                     top: `${20 + Math.sin((featureAnimFrame + i * 30) * 0.1) * 15}%`,
@@ -546,50 +500,45 @@ const Landing = () => {
           </div>
 
           {/* Organize Thinking Card */}
-          <div className={`p-8 rounded-3xl transition-all duration-300 hover:scale-[1.02] ${theme.card} border group overflow-hidden`}>
-            {/* Animated visual area */}
-            <div className={`w-full h-44 rounded-2xl ${isDark ? 'bg-gradient-to-br from-amber-500/10 via-orange-500/5 to-transparent' : 'bg-gradient-to-br from-amber-50 via-orange-50/50 to-white'} flex items-center justify-center mb-6 relative overflow-hidden`}>
-              {/* Clipboard with checkmarks appearing */}
+          <div className="p-8 rounded-2xl transition-all duration-300 bg-white border border-[#e7e5e4] hover:border-[#d6d3d1] hover:shadow-md group overflow-hidden">
+            <div className="w-full h-44 rounded-xl bg-[#f5f5f4] flex items-center justify-center mb-6 relative overflow-hidden">
               <div className="relative">
                 {/* Clipboard */}
-                <div className={`w-20 h-28 rounded-lg ${isDark ? 'bg-amber-500/30' : 'bg-amber-200'} relative`}>
-                  {/* Clipboard clip */}
-                  <div className={`absolute -top-2 left-1/2 -translate-x-1/2 w-10 h-4 ${isDark ? 'bg-amber-600/60' : 'bg-amber-400'} rounded-t-lg`}>
-                    <div className={`absolute top-1 left-1/2 -translate-x-1/2 w-6 h-2 ${isDark ? 'bg-amber-300/50' : 'bg-amber-100'} rounded`} />
+                <div className="w-20 h-28 rounded-lg bg-[#f0d9cf] relative">
+                  <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-10 h-4 bg-[#d97757] rounded-t-lg">
+                    <div className="absolute top-1 left-1/2 -translate-x-1/2 w-6 h-2 bg-[#f0d9cf] rounded" />
                   </div>
-                  {/* Paper */}
-                  <div className={`absolute top-4 left-2 right-2 bottom-2 ${isDark ? 'bg-amber-100/90' : 'bg-white'} rounded`}>
-                    {/* Checklist items */}
+                  <div className="absolute top-4 left-2 right-2 bottom-2 bg-white rounded">
                     {[0, 1, 2, 3].map((i) => {
                       const checkDelay = (featureAnimFrame * 0.08 + i * 0.8) % 4
                       const isChecked = checkDelay > 0.5
                       return (
                         <div key={i} className="flex items-center gap-1.5 px-1.5 py-1">
-                          <div className={`w-3 h-3 rounded border ${isDark ? 'border-amber-400' : 'border-amber-400'} flex items-center justify-center transition-all duration-200`}>
+                          <div className="w-3 h-3 rounded border border-[#d97757] flex items-center justify-center transition-all duration-200">
                             {isChecked && (
-                              <svg className={`w-2 h-2 ${isDark ? 'text-amber-500' : 'text-amber-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                              <svg className="w-2 h-2 text-[#d97757]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                               </svg>
                             )}
                           </div>
-                          <div className={`h-1.5 ${isDark ? 'bg-amber-300/50' : 'bg-amber-200'} rounded flex-1`} style={{ opacity: isChecked ? 0.5 : 1 }} />
+                          <div className="h-1.5 bg-[#f0d9cf] rounded flex-1" style={{ opacity: isChecked ? 0.5 : 1 }} />
                         </div>
                       )
                     })}
                   </div>
                 </div>
-                {/* Floating organization elements */}
+                {/* Floating elements */}
                 <div
-                  className={`absolute -right-6 top-2 w-8 h-8 rounded ${isDark ? 'bg-orange-400/30' : 'bg-orange-200'} flex items-center justify-center`}
+                  className="absolute -right-6 top-2 w-8 h-8 rounded bg-[#f0d9cf] flex items-center justify-center"
                   style={{ transform: `translateY(${Math.sin(featureAnimFrame * 0.1) * 5}px) rotate(${Math.sin(featureAnimFrame * 0.08) * 5}deg)` }}
                 >
-                  <span className="text-xs">1</span>
+                  <span className="text-xs text-[#d97757]">1</span>
                 </div>
                 <div
-                  className={`absolute -left-5 bottom-4 w-8 h-8 rounded ${isDark ? 'bg-amber-400/30' : 'bg-amber-200'} flex items-center justify-center`}
+                  className="absolute -left-5 bottom-4 w-8 h-8 rounded bg-[#f0d9cf] flex items-center justify-center"
                   style={{ transform: `translateY(${Math.sin((featureAnimFrame + 20) * 0.1) * 5}px) rotate(${Math.sin((featureAnimFrame + 20) * 0.08) * -5}deg)` }}
                 >
-                  <span className="text-xs">2</span>
+                  <span className="text-xs text-[#d97757]">2</span>
                 </div>
               </div>
             </div>
@@ -598,27 +547,25 @@ const Landing = () => {
           </div>
 
           {/* Spark Ideas Card */}
-          <div className={`p-8 rounded-3xl transition-all duration-300 hover:scale-[1.02] ${theme.card} border group overflow-hidden`}>
-            {/* Animated visual area */}
-            <div className={`w-full h-40 rounded-2xl ${isDark ? 'bg-gradient-to-br from-amber-500/10 via-orange-500/5 to-transparent' : 'bg-gradient-to-br from-amber-50 via-orange-50/50 to-white'} flex items-center justify-center mb-6 relative overflow-hidden`}>
-              {/* Lightbulb with glowing effect */}
+          <div className="p-8 rounded-2xl transition-all duration-300 bg-white border border-[#e7e5e4] hover:border-[#d6d3d1] hover:shadow-md group overflow-hidden">
+            <div className="w-full h-44 rounded-xl bg-[#f5f5f4] flex items-center justify-center mb-6 relative overflow-hidden">
               <div className="relative">
                 {/* Glow effect */}
                 <div
-                  className={`absolute inset-0 ${isDark ? 'bg-amber-400' : 'bg-amber-300'} rounded-full blur-xl`}
+                  className="absolute inset-0 bg-[#d97757] rounded-full blur-xl"
                   style={{
                     transform: `scale(${1.5 + Math.sin(featureAnimFrame * 0.12) * 0.5})`,
-                    opacity: 0.2 + Math.sin(featureAnimFrame * 0.12) * 0.15
+                    opacity: 0.15 + Math.sin(featureAnimFrame * 0.12) * 0.1
                   }}
                 />
                 {/* Lightbulb */}
                 <div className="relative">
                   <svg
-                    className={`w-16 h-16 ${isDark ? 'text-amber-400' : 'text-amber-500'}`}
+                    className="w-16 h-16 text-[#d97757]"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
-                    style={{ filter: `drop-shadow(0 0 ${8 + Math.sin(featureAnimFrame * 0.12) * 4}px ${isDark ? 'rgba(251, 191, 36, 0.5)' : 'rgba(251, 191, 36, 0.4)'})` }}
+                    style={{ filter: `drop-shadow(0 0 ${6 + Math.sin(featureAnimFrame * 0.12) * 3}px rgba(217, 119, 87, 0.3))` }}
                   >
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                   </svg>
@@ -630,7 +577,7 @@ const Landing = () => {
                   return (
                     <div
                       key={i}
-                      className={`absolute w-2 h-2 ${isDark ? 'bg-amber-400' : 'bg-amber-400'}`}
+                      className="absolute w-2 h-2 bg-[#d97757]"
                       style={{
                         left: '50%',
                         top: '50%',
@@ -652,7 +599,7 @@ const Landing = () => {
         </div>
       </section>
 
-      {/* Features Grid - Large cards with dynamic visuals */}
+      {/* Features Grid */}
       <section className="relative z-10 max-w-7xl mx-auto px-8 py-24">
         <h2 className={`text-4xl font-bold text-center mb-4 ${theme.text}`}>What's included</h2>
         <p className={`text-center ${theme.textMuted} mb-16 text-lg`}>Everything you need for document intelligence</p>
@@ -661,11 +608,11 @@ const Landing = () => {
           {features.map((item, idx) => (
             <div
               key={item.title}
-              className={`rounded-3xl border ${theme.card} ${theme.cardHover} p-8 transition-all duration-500 group overflow-hidden`}
+              className="rounded-2xl border bg-white border-[#e7e5e4] hover:border-[#d6d3d1] hover:shadow-md p-8 transition-all duration-300 group overflow-hidden"
             >
               <div className="flex flex-col md:flex-row gap-6 items-start">
                 <div className="flex-1 space-y-4">
-                  <div className={`w-14 h-14 rounded-2xl ${isDark ? 'bg-amber-400/10' : 'bg-amber-100'} flex items-center justify-center ${theme.accentText} group-hover:scale-110 transition-transform duration-300`}>
+                  <div className="w-14 h-14 rounded-2xl bg-[#d97757]/10 flex items-center justify-center text-[#d97757]">
                     {item.icon}
                   </div>
                   <h3 className={`text-2xl font-semibold ${theme.text}`}>{item.title}</h3>
@@ -673,20 +620,20 @@ const Landing = () => {
                 </div>
 
                 {/* Dynamic Visual area */}
-                <div className={`w-full md:w-56 h-36 rounded-2xl ${isDark ? 'bg-gradient-to-br from-amber-500/10 via-orange-500/5 to-transparent' : 'bg-gradient-to-br from-amber-100 via-orange-50 to-white'} flex items-center justify-center overflow-hidden relative`}>
+                <div className="w-full md:w-56 h-36 rounded-xl bg-[#f5f5f4] flex items-center justify-center overflow-hidden relative">
                   {item.visual === 'chat' && (
                     <div className="space-y-3 p-4 w-full">
                       <div className="flex items-start gap-2">
-                        <div className={`w-6 h-6 rounded-full ${isDark ? 'bg-amber-400/30' : 'bg-amber-300'} flex-shrink-0`} />
-                        <div className={`h-4 ${isDark ? 'bg-white/20' : 'bg-amber-200'} rounded-lg`} style={{ width: `${40 + (featureAnimFrame % 30)}%` }} />
+                        <div className="w-6 h-6 rounded-full bg-[#e8a088] flex-shrink-0" />
+                        <div className="h-4 bg-[#f0d9cf] rounded-lg" style={{ width: `${40 + (featureAnimFrame % 30)}%` }} />
                       </div>
                       <div className="flex items-start gap-2 justify-end">
-                        <div className={`h-4 ${isDark ? 'bg-amber-400/40' : 'bg-amber-400'} rounded-lg`} style={{ width: `${30 + ((featureAnimFrame + 10) % 25)}%` }} />
-                        <div className={`w-6 h-6 rounded-full ${isDark ? 'bg-white/20' : 'bg-amber-200'} flex-shrink-0`} />
+                        <div className="h-4 bg-[#d97757] rounded-lg" style={{ width: `${30 + ((featureAnimFrame + 10) % 25)}%` }} />
+                        <div className="w-6 h-6 rounded-full bg-[#f0d9cf] flex-shrink-0" />
                       </div>
                       <div className="flex items-start gap-2">
-                        <div className={`w-6 h-6 rounded-full ${isDark ? 'bg-amber-400/30' : 'bg-amber-300'} flex-shrink-0`} />
-                        <div className={`h-4 ${isDark ? 'bg-white/20' : 'bg-amber-200'} rounded-lg`} style={{ width: `${50 + ((featureAnimFrame + 20) % 20)}%` }} />
+                        <div className="w-6 h-6 rounded-full bg-[#e8a088] flex-shrink-0" />
+                        <div className="h-4 bg-[#f0d9cf] rounded-lg" style={{ width: `${50 + ((featureAnimFrame + 20) % 20)}%` }} />
                       </div>
                     </div>
                   )}
@@ -697,7 +644,7 @@ const Landing = () => {
                         return (
                           <div
                             key={i}
-                            className={`w-2 ${isDark ? 'bg-amber-400/70' : 'bg-amber-400'} rounded-full transition-all duration-100`}
+                            className="w-2 bg-[#d97757] rounded-full transition-all duration-100"
                             style={{ height: `${height}px` }}
                           />
                         )
@@ -712,9 +659,9 @@ const Landing = () => {
                           <div
                             key={v}
                             className={`w-14 rounded-xl border flex flex-col items-center justify-center text-xs font-medium transition-all duration-300 ${isActive
-                              ? (isDark ? 'bg-amber-400/40 border-amber-400 h-20' : 'bg-amber-300 border-amber-400 h-20')
-                              : (isDark ? 'bg-white/10 border-white/20 h-16' : 'bg-amber-100 border-amber-200 h-16')
-                              } ${theme.textMuted}`}
+                              ? 'bg-[#d97757] border-[#c4684a] text-white h-20'
+                              : 'bg-[#f0d9cf] border-[#e8a088] text-[#78716c] h-16'
+                              }`}
                           >
                             {v}
                             {isActive && <span className="text-[10px] mt-1 opacity-70">Active</span>}
@@ -725,18 +672,17 @@ const Landing = () => {
                   )}
                   {item.visual === 'secure' && (
                     <div className="relative">
-                      <div className={`w-20 h-24 rounded-xl ${isDark ? 'bg-amber-400/20' : 'bg-amber-200'} flex items-center justify-center transition-all duration-300`} style={{ transform: `scale(${1 + Math.sin(featureAnimFrame * 0.05) * 0.05})` }}>
-                        <svg className={`w-10 h-10 ${theme.accentText}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <div className="w-20 h-24 rounded-xl bg-[#f0d9cf] flex items-center justify-center transition-all duration-300" style={{ transform: `scale(${1 + Math.sin(featureAnimFrame * 0.05) * 0.05})` }}>
+                        <svg className="w-10 h-10 text-[#d97757]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                         </svg>
                       </div>
-                      <div className={`absolute -top-2 -right-2 w-7 h-7 rounded-full ${isDark ? 'bg-green-500' : 'bg-green-400'} flex items-center justify-center shadow-lg`}>
+                      <div className="absolute -top-2 -right-2 w-7 h-7 rounded-full bg-green-400 flex items-center justify-center shadow-sm">
                         <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                         </svg>
                       </div>
-                      {/* Animated ring */}
-                      <div className={`absolute inset-0 -m-2 rounded-2xl border-2 ${isDark ? 'border-amber-400/30' : 'border-amber-300'} animate-ping opacity-30`} style={{ animationDuration: '2s' }} />
+                      <div className="absolute inset-0 -m-2 rounded-2xl border border-[#d97757]/20" />
                     </div>
                   )}
                   {item.visual === 'export' && (
@@ -747,9 +693,9 @@ const Landing = () => {
                           <div
                             key={f}
                             className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-all duration-300 ${isDownloading
-                              ? (isDark ? 'bg-amber-400/30 scale-105' : 'bg-amber-300 scale-105')
-                              : (isDark ? 'bg-white/10' : 'bg-amber-100')
-                              } text-sm font-medium ${theme.textMuted}`}
+                              ? 'bg-[#d97757] text-white'
+                              : 'bg-[#f0d9cf] text-[#78716c]'
+                              } text-sm font-medium`}
                           >
                             <span>.{f.toLowerCase()}</span>
                             {isDownloading && (
@@ -770,9 +716,9 @@ const Landing = () => {
                           <div
                             key={f}
                             className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 ${isActive
-                              ? (isDark ? 'bg-amber-400/40 scale-110 shadow-lg' : 'bg-amber-300 scale-110 shadow-lg')
-                              : (isDark ? 'bg-white/10' : 'bg-amber-100')
-                              } ${theme.textMuted}`}
+                              ? 'bg-[#d97757] text-white shadow-sm'
+                              : 'bg-[#f0d9cf] text-[#78716c]'
+                              }`}
                           >
                             {f}
                           </div>
@@ -815,49 +761,43 @@ const Landing = () => {
           ].map((item, idx) => (
             <div
               key={item.num}
-              className={`rounded-3xl border ${theme.card} ${theme.cardHover} p-6 transition-all duration-500 group overflow-hidden hover:shadow-2xl ${isDark ? 'hover:shadow-amber-500/10' : 'hover:shadow-amber-500/20'}`}
+              className="rounded-2xl border bg-white border-[#e7e5e4] hover:border-[#d6d3d1] hover:shadow-md p-6 transition-all duration-300 group overflow-hidden"
             >
               <div className="flex flex-col gap-5">
                 {/* Dynamic Visual area */}
-                <div className={`w-full h-44 rounded-2xl ${isDark ? 'bg-gradient-to-br from-amber-500/10 via-orange-500/5 to-transparent' : 'bg-gradient-to-br from-amber-50 via-orange-50/50 to-white'} flex items-center justify-center overflow-hidden relative group-hover:scale-[1.02] transition-transform duration-500`}>
+                <div className="w-full h-44 rounded-xl bg-[#f5f5f4] flex items-center justify-center overflow-hidden relative">
                   {item.visual === 'upload' && (() => {
-                    // Animation cycle: 0-25 files floating, 25-40 files moving in, 40-60 green tick
                     const cycle = featureAnimFrame % 60
                     const isUploading = cycle >= 25 && cycle < 40
                     const isComplete = cycle >= 40
 
                     return (
                       <div className="relative flex items-center justify-center">
-                        {/* Main upload zone */}
-                        <div className={`w-28 h-32 rounded-2xl border-2 border-dashed ${isDark ? 'border-amber-400/40 bg-amber-400/5' : 'border-amber-300 bg-amber-50/50'} flex flex-col items-center justify-center transition-all duration-300 ${isComplete ? (isDark ? 'border-green-400/60 bg-green-400/10' : 'border-green-400 bg-green-50') : ''}`}>
+                        <div className={`w-28 h-32 rounded-2xl border-2 border-dashed transition-all duration-300 ${isComplete ? 'border-green-400 bg-green-50' : 'border-[#d97757]/40 bg-[#d97757]/5'} flex flex-col items-center justify-center`}>
                           {isComplete ? (
-                            /* Green tick when complete */
                             <div className="flex flex-col items-center">
-                              <div className={`w-14 h-14 rounded-full ${isDark ? 'bg-green-500/30' : 'bg-green-100'} flex items-center justify-center`}>
-                                <svg className={`w-8 h-8 ${isDark ? 'text-green-400' : 'text-green-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center">
+                                <svg className="w-8 h-8 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                                 </svg>
                               </div>
-                              <span className={`text-xs mt-2 ${isDark ? 'text-green-400' : 'text-green-600'} font-medium`}>Uploaded!</span>
+                              <span className="text-xs mt-2 text-green-600 font-medium">Uploaded!</span>
                             </div>
                           ) : (
-                            /* Cloud icon when not complete */
                             <>
-                              <svg className={`w-12 h-12 ${isDark ? 'text-amber-400' : 'text-amber-500'} transition-transform duration-300`} style={{ transform: `translateY(${Math.sin(featureAnimFrame * 0.15) * 3}px)` }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <svg className="w-12 h-12 text-[#d97757] transition-transform duration-300" style={{ transform: `translateY(${Math.sin(featureAnimFrame * 0.15) * 3}px)` }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                               </svg>
-                              <span className={`text-xs mt-2 ${isDark ? 'text-amber-400/70' : 'text-amber-600'}`}>Drop files</span>
+                              <span className="text-xs mt-2 text-[#d97757]">Drop files</span>
                             </>
                           )}
                         </div>
 
-                        {/* Floating files - animate into upload zone */}
                         {!isComplete && [
-                          { color: isDark ? 'bg-amber-400/30' : 'bg-amber-200', startX: -45, startY: -25 },
-                          { color: isDark ? 'bg-orange-400/30' : 'bg-orange-200', startX: 45, startY: -20 },
-                          { color: isDark ? 'bg-amber-500/30' : 'bg-amber-300', startX: 0, startY: -50 }
+                          { color: 'bg-[#f0d9cf]', startX: -45, startY: -25 },
+                          { color: 'bg-[#e8a088]', startX: 45, startY: -20 },
+                          { color: 'bg-[#f0d9cf]', startX: 0, startY: -50 }
                         ].map((file, i) => {
-                          // Calculate position based on animation phase
                           const progress = isUploading ? Math.min(1, (cycle - 25) / 15) : 0
                           const floatOffset = isUploading ? 0 : Math.sin((featureAnimFrame + i * 25) * 0.12) * 5
                           const currentX = file.startX * (1 - progress)
@@ -875,7 +815,7 @@ const Landing = () => {
                                 transition: 'transform 0.08s ease-out, opacity 0.08s ease-out'
                               }}
                             >
-                              <svg className={`w-5 h-5 ${isDark ? 'text-amber-300' : 'text-amber-600'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <svg className="w-5 h-5 text-[#d97757]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                               </svg>
                             </div>
@@ -887,30 +827,25 @@ const Landing = () => {
 
                   {item.visual === 'chat' && (
                     <div className="w-full h-full p-4 flex flex-col justify-center">
-                      {/* Chat messages with typing effect */}
                       <div className="space-y-3">
-                        {/* User message */}
                         <div className="flex items-end gap-2 justify-end" style={{ opacity: Math.min(1, (featureAnimFrame % 60) / 10) }}>
-                          <div className={`max-w-[70%] px-4 py-2.5 rounded-2xl rounded-br-sm ${isDark ? 'bg-amber-400/30' : 'bg-amber-400'} ${isDark ? 'text-amber-100' : 'text-amber-900'}`}>
-                            <div className="flex items-center gap-1">
-                              <span className="text-xs font-medium">What does this say?</span>
-                            </div>
+                          <div className="max-w-[70%] px-4 py-2.5 rounded-2xl rounded-br-sm bg-[#d97757] text-white">
+                            <span className="text-xs font-medium">What does this say?</span>
                           </div>
-                          <div className={`w-7 h-7 rounded-full ${isDark ? 'bg-amber-400/40' : 'bg-amber-300'} flex-shrink-0`} />
+                          <div className="w-7 h-7 rounded-full bg-[#e8a088] flex-shrink-0" />
                         </div>
 
-                        {/* AI response with typing indicator */}
                         <div className="flex items-end gap-2">
-                          <div className={`w-7 h-7 rounded-full ${isDark ? 'bg-gradient-to-br from-amber-400 to-orange-500' : 'bg-gradient-to-br from-amber-400 to-orange-400'} flex-shrink-0 flex items-center justify-center`}>
+                          <div className="w-7 h-7 rounded-full bg-[#d97757] flex-shrink-0 flex items-center justify-center">
                             <span className="text-white text-xs font-bold">D</span>
                           </div>
-                          <div className={`max-w-[75%] px-4 py-2.5 rounded-2xl rounded-bl-sm ${isDark ? 'bg-white/10' : 'bg-white'} shadow-sm`}>
+                          <div className="max-w-[75%] px-4 py-2.5 rounded-2xl rounded-bl-sm bg-white shadow-sm">
                             {(featureAnimFrame % 60) < 30 ? (
                               <div className="flex gap-1 py-1">
                                 {[0, 1, 2].map((i) => (
                                   <div
                                     key={i}
-                                    className={`w-2 h-2 rounded-full ${isDark ? 'bg-amber-400' : 'bg-amber-500'}`}
+                                    className="w-2 h-2 rounded-full bg-[#d97757]"
                                     style={{
                                       animation: 'bounce 1s infinite',
                                       animationDelay: `${i * 0.15}s`
@@ -919,7 +854,7 @@ const Landing = () => {
                                 ))}
                               </div>
                             ) : (
-                              <span className={`text-xs ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Based on page 3, it states...</span>
+                              <span className="text-xs text-[#57534e]">Based on page 3, it states...</span>
                             )}
                           </div>
                         </div>
@@ -929,27 +864,24 @@ const Landing = () => {
 
                   {item.visual === 'answers' && (
                     <div className="relative w-full h-full flex items-center justify-center p-4">
-                      {/* Main document */}
-                      <div className={`w-36 h-32 rounded-xl ${isDark ? 'bg-white/10' : 'bg-white'} shadow-xl p-3 border ${isDark ? 'border-white/20' : 'border-amber-100'} transition-transform duration-500`} style={{ transform: `rotate(${Math.sin(featureAnimFrame * 0.03) * 2}deg)` }}>
-                        {/* Document lines with highlights */}
+                      <div className="w-36 h-32 rounded-xl bg-white shadow-sm p-3 border border-[#e7e5e4] transition-transform duration-500" style={{ transform: `rotate(${Math.sin(featureAnimFrame * 0.03) * 2}deg)` }}>
                         <div className="space-y-2">
-                          <div className={`h-2 ${isDark ? 'bg-white/20' : 'bg-gray-200'} rounded-full w-full`} />
+                          <div className="h-2 bg-[#e7e5e4] rounded-full w-full" />
                           <div className="flex items-center gap-1">
-                            <div className={`h-2 ${isDark ? 'bg-amber-400/60' : 'bg-amber-400'} rounded-full flex-1 transition-all duration-300`} style={{ width: `${50 + (featureAnimFrame % 30)}%` }} />
-                            <span className={`text-[8px] font-bold ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>[1]</span>
+                            <div className="h-2 bg-[#d97757] rounded-full flex-1 transition-all duration-300" style={{ width: `${50 + (featureAnimFrame % 30)}%` }} />
+                            <span className="text-[8px] font-bold text-[#d97757]">[1]</span>
                           </div>
-                          <div className={`h-2 ${isDark ? 'bg-white/20' : 'bg-gray-200'} rounded-full w-4/5`} />
+                          <div className="h-2 bg-[#e7e5e4] rounded-full w-4/5" />
                           <div className="flex items-center gap-1">
-                            <div className={`h-2 ${isDark ? 'bg-amber-400/60' : 'bg-amber-400'} rounded-full flex-1 transition-all duration-300`} style={{ width: `${30 + ((featureAnimFrame + 15) % 25)}%` }} />
-                            <span className={`text-[8px] font-bold ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>[2]</span>
+                            <div className="h-2 bg-[#d97757] rounded-full flex-1 transition-all duration-300" style={{ width: `${30 + ((featureAnimFrame + 15) % 25)}%` }} />
+                            <span className="text-[8px] font-bold text-[#d97757]">[2]</span>
                           </div>
-                          <div className={`h-2 ${isDark ? 'bg-white/15' : 'bg-gray-100'} rounded-full w-3/5`} />
+                          <div className="h-2 bg-[#f5f5f4] rounded-full w-3/5" />
                         </div>
                       </div>
 
-                      {/* Success checkmark */}
                       <div
-                        className={`absolute top-3 right-6 w-10 h-10 rounded-full bg-gradient-to-br from-green-400 to-green-600 flex items-center justify-center shadow-lg shadow-green-500/30`}
+                        className="absolute top-3 right-6 w-10 h-10 rounded-full bg-green-500 flex items-center justify-center shadow-sm"
                         style={{ transform: `scale(${1 + Math.sin(featureAnimFrame * 0.1) * 0.1})` }}
                       >
                         <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -957,9 +889,8 @@ const Landing = () => {
                         </svg>
                       </div>
 
-                      {/* Floating citation badges */}
                       <div
-                        className={`absolute bottom-4 left-4 px-2 py-1 rounded-lg text-[10px] font-bold ${isDark ? 'bg-amber-400/20 text-amber-300 border border-amber-400/30' : 'bg-amber-100 text-amber-700 border border-amber-200'} shadow-md`}
+                        className="absolute bottom-4 left-4 px-2 py-1 rounded-lg text-[10px] font-bold bg-[#d97757]/15 text-[#d97757] border border-[#d97757]/30 shadow-sm"
                         style={{ transform: `translateY(${Math.sin(featureAnimFrame * 0.08) * 3}px)` }}
                       >
                         Page 3, Para 2
@@ -970,8 +901,8 @@ const Landing = () => {
 
                 {/* Number badge */}
                 <div className="flex items-center gap-3">
-                  <span className={`text-4xl font-bold bg-gradient-to-r from-amber-400 via-orange-500 to-amber-400 bg-[length:200%_auto] animate-gradient bg-clip-text text-transparent`}>{item.num}</span>
-                  <div className={`flex-1 h-0.5 ${isDark ? 'bg-gradient-to-r from-amber-400/30 to-transparent' : 'bg-gradient-to-r from-amber-300 to-transparent'} group-hover:from-amber-400 transition-all duration-500`} />
+                  <span className="text-4xl font-bold text-[#d97757]">{item.num}</span>
+                  <div className="flex-1 h-0.5 bg-gradient-to-r from-[#d97757]/40 to-transparent group-hover:from-[#d97757] transition-all duration-500" />
                 </div>
 
                 <div>
@@ -986,7 +917,7 @@ const Landing = () => {
 
       {/* CTA Section */}
       <section className="relative z-10 max-w-5xl mx-auto px-8 py-24">
-        <div className={`rounded-3xl ${theme.card} border p-14 text-center`}>
+        <div className="rounded-2xl bg-white border border-[#e7e5e4] p-14 text-center">
           <h2 className={`text-4xl font-bold ${theme.text} mb-6`}>Ready to get started?</h2>
           <p className={`${theme.textMuted} text-xl max-w-2xl mx-auto mb-12`}>
             Join researchers, students, and professionals using DocTalk to understand their documents better.
@@ -994,13 +925,13 @@ const Landing = () => {
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <button
               onClick={handleTry}
-              className={`w-full sm:w-auto ${theme.btnPrimary} text-gray-900 font-semibold px-12 py-4 rounded-full shadow-xl shadow-amber-500/25 hover:shadow-amber-500/40 hover:scale-[1.02] transition-all duration-300 text-lg`}
+              className="w-full sm:w-auto bg-[#d97757] hover:bg-[#c4684a] text-white font-semibold px-12 py-4 rounded-xl transition-colors text-lg"
             >
               Start for free
             </button>
             <button
               onClick={() => navigate('/signup')}
-              className={`w-full sm:w-auto ${theme.btnSecondary} ${theme.text} font-medium px-12 py-4 rounded-full transition-all duration-300 border`}
+              className="w-full sm:w-auto bg-white border border-[#e7e5e4] hover:bg-[#f5f5f4] text-[#292524] font-medium px-12 py-4 rounded-xl transition-colors"
             >
               Create account
             </button>
@@ -1012,14 +943,14 @@ const Landing = () => {
       <footer className={`relative z-10 max-w-7xl mx-auto px-8 py-10 border-t ${theme.divider}`}>
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-sm">
           <div className="flex items-center gap-2">
-            <img 
-              src="/img/icon.png" 
-              alt="DocTalk Logo" 
+            <img
+              src="/img/icon.png"
+              alt="DocTalk Logo"
               className="w-6 h-6 object-contain"
             />
             <span className={theme.textSubtle}>DocTalk</span>
           </div>
-          <p className={theme.textSubtle}>© 2025 DocTalk. All rights reserved.</p>
+          <p className={theme.textSubtle}>© 2026 DocTalk. All rights reserved.</p>
         </div>
       </footer>
 

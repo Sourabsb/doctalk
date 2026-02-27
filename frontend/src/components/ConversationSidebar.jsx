@@ -28,7 +28,6 @@ const ConversationSidebar = ({
   onToggleCollapse,
   onNewChat,
   onOpenProfileSettings = () => { },
-  isDark = false
 }) => {
   const [showSettings, setShowSettings] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -40,9 +39,9 @@ const ConversationSidebar = ({
 
   // Theme colors matching ChatInterface
   const theme = {
-    text: isDark ? 'text-gray-100' : 'text-gray-900',
-    textSecondary: isDark ? 'text-gray-400' : 'text-gray-600',
-    textMuted: isDark ? 'text-gray-500' : 'text-gray-500',
+    text: 'text-[#292524]',
+    textSecondary: 'text-[#78716c]',
+    textMuted: 'text-[#a8a29e]',
   }
 
   return (
@@ -276,7 +275,7 @@ const ConversationSidebar = ({
                 <TooltipTrigger asChild>
                   <button
                     onClick={() => setShowSettings(!showSettings)}
-                    className="transition-transform hover:scale-105"
+                    className="transition-transform"
                   >
                     <Avatar size="default">
                       <AvatarFallback variant="primary" className="text-sm">

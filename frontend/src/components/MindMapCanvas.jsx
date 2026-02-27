@@ -6,7 +6,6 @@ const MindMapCanvas = ({
     expandedNodes,
     onNodeToggle,
     onNodeClick,
-    isDark,
     zoom,
     setZoom,
     pan,
@@ -360,9 +359,7 @@ const MindMapCanvas = ({
             background: 'hsl(var(--card))',
             border: '1px solid hsl(var(--border))',
             color: 'hsl(var(--card-foreground))',
-            boxShadow: isDark
-                ? '0 10px 15px -3px rgba(0, 0, 0, 0.5)'
-                : '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
         };
     };
 
@@ -372,7 +369,7 @@ const MindMapCanvas = ({
         return `M ${fromX} ${fromY} C ${fromX + controlOffset} ${fromY}, ${toX - controlOffset} ${toY}, ${toX} ${toY}`;
     };
 
-    const lineColor = isDark ? '#ffffff' : '#000000';
+    const lineColor = '#000000';
     const bgColor = 'hsl(var(--background))';
 
     const fullscreenStyle = isFullscreen ? {
@@ -403,7 +400,7 @@ const MindMapCanvas = ({
             {isFullscreen && onExitFullscreen && (
                 <button
                     onClick={onExitFullscreen}
-                    className={`absolute top-4 left-4 z-[100] flex items-center gap-2 px-3 py-2 rounded-lg border transition-all bg-card border-border text-card-foreground hover:bg-accent shadow-lg backdrop-blur-sm`}
+                    className={`absolute top-4 left-4 z-[100] flex items-center gap-2 px-3 py-2 rounded-lg border transition-all bg-card border-border text-card-foreground hover:bg-accent shadow-sm`}
                     title="Exit fullscreen"
                 >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -419,7 +416,7 @@ const MindMapCanvas = ({
                     onClick={handleZoomIn}
                     aria-label="Zoom in"
                     title="Zoom in"
-                    className="w-8 h-8 flex items-center justify-center rounded-lg border transition-all bg-card border-border text-card-foreground hover:bg-accent shadow-lg backdrop-blur-sm"
+                    className="w-8 h-8 flex items-center justify-center rounded-lg border transition-all bg-card border-border text-card-foreground hover:bg-accent shadow-sm"
                 >
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                         <path d="M12 5v14M5 12h14" />
@@ -429,7 +426,7 @@ const MindMapCanvas = ({
                     onClick={handleZoomOut}
                     aria-label="Zoom out"
                     title="Zoom out"
-                    className="w-8 h-8 flex items-center justify-center rounded-lg border transition-all bg-card border-border text-card-foreground hover:bg-accent shadow-lg backdrop-blur-sm"
+                    className="w-8 h-8 flex items-center justify-center rounded-lg border transition-all bg-card border-border text-card-foreground hover:bg-accent shadow-sm"
                 >
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                         <path d="M5 12h14" />
@@ -438,7 +435,7 @@ const MindMapCanvas = ({
                 <button
                     onClick={handleReset}
                     aria-label="Reset view"
-                    className="w-8 h-8 flex items-center justify-center rounded-lg border transition-all bg-card border-border text-card-foreground hover:bg-accent shadow-lg backdrop-blur-sm"
+                    className="w-8 h-8 flex items-center justify-center rounded-lg border transition-all bg-card border-border text-card-foreground hover:bg-accent shadow-sm"
                     title="Reset view"
                 >
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -574,7 +571,7 @@ const MindMapCanvas = ({
                                 {/* Arrow Button */}
                                 {node.hasChildren && (
                                     <button
-                                        className="mindmap-arrow flex items-center justify-center transition-all duration-200 hover:scale-105"
+                                        className="mindmap-arrow flex items-center justify-center transition-all duration-200"
                                         aria-label={node.isExpanded ? 'Collapse node' : 'Expand node'}
                                         aria-expanded={node.isExpanded}
                                         style={{
@@ -587,9 +584,7 @@ const MindMapCanvas = ({
                                             color: 'hsl(var(--muted-foreground))',
                                             cursor: 'pointer',
                                             flexShrink: 0,
-                                            boxShadow: isDark
-                                                ? '0 2px 4px rgba(0, 0, 0, 0.2)'
-                                                : '0 1px 3px rgba(0, 0, 0, 0.08)'
+                                            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.08)'
                                         }}
                                         onClick={(e) => {
                                             e.stopPropagation();

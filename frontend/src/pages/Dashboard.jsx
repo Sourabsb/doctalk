@@ -20,7 +20,7 @@ import { Skeleton, SkeletonCard } from '@/components/ui/skeleton'
 
 // Lucide icons
 import {
-  Plus, Sun, Moon, Settings, LogOut, User, ChevronLeft,
+  Plus, Settings, LogOut, User, ChevronLeft,
   Trash2, Star, FileText, LayoutGrid, List, ChevronDown,
   Cloud, Lock, AlertTriangle, Loader2, Sparkles
 } from 'lucide-react'
@@ -44,29 +44,7 @@ const Dashboard = () => {
   const [activeTab, setActiveTab] = useState('all')
   const [viewMode, setViewMode] = useState('grid')
   const [sortBy, setSortBy] = useState('recent')
-  const [isDark, setIsDark] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('doctalk-theme') === 'dark'
-    }
-    return false
-  })
 
-  // Apply dark mode to document
-  useEffect(() => {
-    if (isDark) {
-      document.documentElement.classList.add('dark')
-    } else {
-      document.documentElement.classList.remove('dark')
-    }
-  }, [isDark])
-
-  const toggleTheme = () => {
-    setIsDark(prev => {
-      const next = !prev
-      localStorage.setItem('doctalk-theme', next ? 'dark' : 'light')
-      return next
-    })
-  }
 
   const refreshConversations = useCallback(async () => {
     try {
@@ -171,25 +149,6 @@ const Dashboard = () => {
               </div>
 
               <div className="flex items-center gap-2">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={toggleTheme}
-                    >
-                      {isDark ? (
-                        <Sun className="h-5 w-5" />
-                      ) : (
-                        <Moon className="h-5 w-5" />
-                      )}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent variant="glass">
-                    {isDark ? 'Light mode' : 'Dark mode'}
-                  </TooltipContent>
-                </Tooltip>
-
                 <Button
                   variant="ghost"
                   size="sm"
@@ -213,7 +172,6 @@ const Dashboard = () => {
                   setActiveConversationId(newId)
                   refreshConversations()
                 }}
-                isDark={isDark}
               />
             </div>
           </div>
@@ -229,14 +187,12 @@ const Dashboard = () => {
               setActiveConversationId(null)
               logout()
             }}
-            isDark={isDark}
           />
 
           <UploadModal
             isOpen={isUploadModalOpen}
             onClose={() => setIsUploadModalOpen(false)}
             onUploadSuccess={handleUploadSuccess}
-            isDark={isDark}
           />
         </div>
       </TooltipProvider>
@@ -259,7 +215,7 @@ const Dashboard = () => {
                 <img 
                   src="/img/icon.png" 
                   alt="DocTalk Logo" 
-                  className="w-10 h-10 object-contain hover:scale-105 transition-transform cursor-pointer"
+                  className="w-10 h-10 object-contain transition-transform cursor-pointer"
                   onClick={() => navigate('/')}
                 />
                 <span className="text-2xl font-bold text-foreground">DocTalk</span>
@@ -267,17 +223,6 @@ const Dashboard = () => {
 
               {/* Actions */}
               <div className="flex items-center space-x-3">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon" onClick={toggleTheme}>
-                      {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent variant="glass">
-                    {isDark ? 'Light mode' : 'Dark mode'}
-                  </TooltipContent>
-                </Tooltip>
-
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button variant="ghost" size="icon" onClick={() => setIsProfileModalOpen(true)}>
@@ -434,7 +379,7 @@ const Dashboard = () => {
                 >
                   <CardContent className={viewMode === 'grid' ? 'p-6' : 'p-4 flex items-center'}>
                     {/* Card Icon */}
-                    <div className={`rounded-xl bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center ${viewMode === 'grid' ? 'w-14 h-14 mb-4' : 'w-12 h-12 mr-4 flex-shrink-0'
+                    <div className={`rounded-xl bg-primary/10 flex items-center justify-center ${viewMode === 'grid' ? 'w-14 h-14 mb-4' : 'w-12 h-12 mr-4 flex-shrink-0'
                       }`}>
                       <FileText className="w-7 h-7 text-primary" />
                     </div>
@@ -532,19 +477,17 @@ const Dashboard = () => {
             setActiveConversationId(null)
             logout()
           }}
-          isDark={isDark}
         />
 
         <UploadModal
           isOpen={isUploadModalOpen}
           onClose={() => setIsUploadModalOpen(false)}
           onUploadSuccess={handleUploadSuccess}
-          isDark={isDark}
         />
 
         {/* Delete Confirmation Dialog */}
         <Dialog open={!!deleteConfirmId} onOpenChange={(open) => !open && setDeleteConfirmId(null)}>
-          <DialogContent variant="glass">
+          <DialogContent className="!bg-white border border-[#e7e5e4] shadow-md !text-[#292524] [&_p]:!text-[#78716c] [&_h2]:!text-[#292524]">
             {isDeleting ? (
               <div className="flex flex-col items-center py-8">
                 <div className="relative w-12 h-12 mb-4">
@@ -560,14 +503,14 @@ const Dashboard = () => {
                     <div className="p-2 rounded-full bg-destructive/10">
                       <AlertTriangle className="h-6 w-6 text-destructive" />
                     </div>
-                    <DialogTitle>Delete Notebook?</DialogTitle>
+                    <DialogTitle className="text-[#292524]">Delete Notebook?</DialogTitle>
                   </div>
-                  <DialogDescription>
+                  <DialogDescription className="text-[#78716c]">
                     Are you sure you want to delete this notebook? This action cannot be undone.
                   </DialogDescription>
                 </DialogHeader>
                 <DialogFooter>
-                  <Button variant="ghost" onClick={() => setDeleteConfirmId(null)}>
+                  <Button variant="ghost" className="text-[#78716c] hover:text-[#292524] hover:bg-[#f5f5f4]" onClick={() => setDeleteConfirmId(null)}>
                     Cancel
                   </Button>
                   <Button variant="destructive" onClick={() => handleDeleteConversation(deleteConfirmId)}>

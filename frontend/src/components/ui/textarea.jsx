@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils"
 const Textarea = React.forwardRef(({ className, variant = "default", ...props }, ref) => {
   const variants = {
     default: "border-input bg-background hover:border-primary/30",
-    glass: "bg-white/50 dark:bg-white/5 backdrop-blur-xl border-white/30 dark:border-white/10 hover:border-primary/30",
+    glass: "bg-white/90 border-border hover:border-primary/30",
     filled: "border-transparent bg-muted hover:bg-muted/80 focus:bg-background focus:border-input",
     chat: "border-0 bg-transparent resize-none focus:ring-0 focus:outline-none",
   }

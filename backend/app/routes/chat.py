@@ -197,7 +197,8 @@ async def chat(
     chat_history = _build_branch_chat_history(db, conversation.id, parent_reply_to, max_history)
 
     # Initialize Hybrid RAG Processor with Qdrant
-    hybrid_rag = HybridRAGProcessor(conversation_id=conversation.id)
+    conv_embedding_model_sync = getattr(conversation, 'embedding_model', 'custom')
+    hybrid_rag = HybridRAGProcessor(conversation_id=conversation.id, embedding_model_name=conv_embedding_model_sync)
     hybrid_rag.load_documents(chunks=chunk_dicts, document_ids=active_doc_ids if active_doc_ids else None)
     hybrid_rag.load_chat_history(chat_history)
 
@@ -488,7 +489,8 @@ async def chat_stream(
     chat_history = _build_branch_chat_history(db, conv_id, parent_reply_to, max_history)
 
     # Initialize RAG processor with Qdrant
-    hybrid_rag = HybridRAGProcessor(conversation_id=conv_id)
+    conv_embedding_model = getattr(conversation, 'embedding_model', 'custom')
+    hybrid_rag = HybridRAGProcessor(conversation_id=conv_id, embedding_model_name=conv_embedding_model)
     hybrid_rag.load_documents(chunks=chunk_dicts, document_ids=active_doc_ids if active_doc_ids else None)
     hybrid_rag.load_chat_history(chat_history)
 
@@ -677,6 +679,18 @@ async def chat_stream(
         # Save assistant message after streaming completes (even on error to prevent orphaned user messages)
         elapsed = time.time() - start_time
         print(f"[Chat Stream] Generated {token_count} tokens in {elapsed:.2f}s")
+        
+        # Clean up prompt echo and hallucinated artifacts from local LLM output
+        import re as _re
+        full_response = _re.sub(r'\n*\bQUESTION\s*:.*$', '', full_response, flags=_re.DOTALL | _re.IGNORECASE)
+        full_response = _re.sub(r'\n*\bREMINDER\s*:.*$', '', full_response, flags=_re.DOTALL | _re.IGNORECASE)
+        full_response = _re.sub(r'\n*\bDOCUMENTS\s*:.*$', '', full_response, flags=_re.DOTALL | _re.IGNORECASE)
+        full_response = _re.sub(r'\n*\bPREVIOUS CHAT\s*:.*$', '', full_response, flags=_re.DOTALL | _re.IGNORECASE)
+        full_response = _re.sub(r'\n+(?:Q(?:uestion)?|A(?:nswer)?)\s*:\s*.+$', '', full_response, flags=_re.DOTALL | _re.IGNORECASE)
+        full_response = _re.sub(r'\n*\bPlease note\b.*$', '', full_response, flags=_re.DOTALL | _re.IGNORECASE)
+        full_response = _re.sub(r'\n*\bNote\s*:.*$', '', full_response, flags=_re.DOTALL | _re.IGNORECASE)
+        full_response = _re.sub(r'\n*\bImportant\s*:.*$', '', full_response, flags=_re.DOTALL | _re.IGNORECASE)
+        full_response = full_response.strip()
         
         session = SessionLocal()
         try:

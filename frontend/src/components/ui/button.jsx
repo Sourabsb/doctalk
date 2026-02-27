@@ -22,7 +22,9 @@ const buttonVariants = cva(
         link:
           "text-primary underline-offset-4 hover:underline",
         glass:
-          "bg-background/50 backdrop-blur-sm border border-border text-foreground hover:bg-accent/50",
+          "bg-white/90 border border-border text-foreground hover:bg-accent/50",
+        premium:
+          "bg-primary text-primary-foreground shadow-sm hover:opacity-90 active:opacity-80",
       },
       size: {
         default: "h-9 px-4 py-2",

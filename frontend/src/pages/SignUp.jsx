@@ -11,13 +11,6 @@ const SignUp = () => {
   const [isLoading, setIsLoading] = useState(false)
   const [currentSlide, setCurrentSlide] = useState(0)
   const [slideDirection, setSlideDirection] = useState('next')
-  
-  const getThemeFromStorage = () => {
-    const saved = localStorage.getItem('doctalk-theme')
-    return saved === 'dark'
-  }
-  
-  const [isDark, setIsDark] = useState(() => getThemeFromStorage())
 
   const slides = [
     {
@@ -51,20 +44,13 @@ const SignUp = () => {
     return () => clearInterval(interval)
   }, [slides.length])
 
-  // Sync theme from localStorage on mount
-  useEffect(() => {
-    setIsDark(getThemeFromStorage())
-  }, [])
-
   const theme = {
-    bg: isDark ? 'bg-[#0a0a0a]' : 'bg-[#fefcf9]',
-    cardBg: isDark ? 'bg-white/5 backdrop-blur-2xl border-white/10' : 'bg-white/70 backdrop-blur-2xl border-white/50',
-    text: isDark ? 'text-white' : 'text-gray-900',
-    textMuted: isDark ? 'text-gray-400' : 'text-gray-600',
-    input: isDark 
-      ? 'bg-white/5 border-white/10 text-white placeholder-gray-500' 
-      : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400',
-    accentText: isDark ? 'text-amber-400' : 'text-amber-600',
+    bg: 'bg-[#faf9f5]',
+    cardBg: 'bg-white border-[#e7e5e4]',
+    text: 'text-[#292524]',
+    textMuted: 'text-[#78716c]',
+    input: 'bg-white border-[#e7e5e4] text-[#292524]',
+    accentText: 'text-[#d97757]',
   }
 
   const handleChange = (e) => {
@@ -99,14 +85,13 @@ const SignUp = () => {
 
   return (
     <div className={`min-h-screen ${theme.bg} flex items-center justify-center p-6 relative overflow-hidden`}>
-      {/* Background ambient glow */}
+      {/* Subtle background */}
       <div className="absolute inset-0 pointer-events-none">
-        <div className={`absolute top-1/4 right-1/4 w-[500px] h-[500px] ${isDark ? 'bg-amber-500/10' : 'bg-amber-300/20'} blur-[150px] rounded-full`} />
-        <div className={`absolute bottom-1/4 left-1/4 w-[400px] h-[400px] ${isDark ? 'bg-orange-600/10' : 'bg-orange-300/15'} blur-[120px] rounded-full`} />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#faf9f5] via-white/30 to-[#faf9f5]" />
       </div>
 
       {/* Centered Glass Container */}
-      <div className={`relative z-10 w-full max-w-5xl ${theme.cardBg} rounded-3xl border shadow-2xl overflow-hidden`}>
+      <div className={`relative z-10 w-full max-w-5xl ${theme.cardBg} rounded-xl border shadow-sm overflow-hidden`}>
         <div className="flex flex-col lg:flex-row min-h-[650px]">
           
           {/* Left Panel - Form */}
@@ -121,26 +106,7 @@ const SignUp = () => {
                 />
                 <span className={`text-xl font-semibold tracking-tight ${theme.text}`}>DocTalk</span>
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  const next = !isDark
-                  setIsDark(next)
-                  localStorage.setItem('doctalk-theme', next ? 'dark' : 'light')
-                }}
-                className={`p-2 rounded-lg ${isDark ? 'text-gray-400 hover:text-white hover:bg-gray-800' : 'text-gray-600 hover:text-gray-800 hover:bg-amber-50'} transition`}
-                title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-              >
-                {isDark ? (
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
-                  </svg>
-                ) : (
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-                  </svg>
-                )}
-              </button>
+
             </div>
 
             <div className="mb-6">
@@ -158,7 +124,7 @@ const SignUp = () => {
                   required
                   value={form.name}
                   onChange={handleChange}
-                  className={`w-full px-4 py-3.5 ${theme.input} border rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400/50 focus:border-amber-400/50 transition text-base`}
+                  className={`w-full px-4 py-3.5 ${theme.input} border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#d97757]/40 focus:border-[#d97757]/40 transition text-base`}
                   placeholder="John Doe"
                 />
               </div>
@@ -171,7 +137,7 @@ const SignUp = () => {
                   required
                   value={form.email}
                   onChange={handleChange}
-                  className={`w-full px-4 py-3.5 ${theme.input} border rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400/50 focus:border-amber-400/50 transition text-base`}
+                  className={`w-full px-4 py-3.5 ${theme.input} border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#d97757]/40 focus:border-[#d97757]/40 transition text-base`}
                   placeholder="you@example.com"
                 />
               </div>
@@ -184,13 +150,13 @@ const SignUp = () => {
                   required
                   value={form.password}
                   onChange={handleChange}
-                  className={`w-full px-4 py-3.5 ${theme.input} border rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400/50 focus:border-amber-400/50 transition text-base`}
+                  className={`w-full px-4 py-3.5 ${theme.input} border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#d97757]/40 focus:border-[#d97757]/40 transition text-base`}
                   placeholder="••••••••"
                 />
               </div>
               
               {error && (
-                <div className={`text-sm ${isDark ? 'text-red-400 bg-red-500/10 border-red-500/20' : 'text-red-600 bg-red-50 border-red-200'} border rounded-xl p-4`}>
+                <div className="text-sm text-destructive bg-destructive/5 border-destructive/20 border rounded-xl p-4">
                   {error}
                 </div>
               )}
@@ -198,7 +164,7 @@ const SignUp = () => {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full py-3.5 bg-gradient-to-r from-amber-300 to-amber-500 text-gray-900 font-semibold rounded-xl shadow-lg shadow-amber-500/25 hover:shadow-amber-500/40 disabled:opacity-60 transition-all duration-300 text-base"
+                className="w-full py-3.5 bg-[#d97757] hover:bg-[#c4684a] text-white font-semibold rounded-lg disabled:opacity-60 transition-colors duration-200 text-base"
               >
                 {isLoading ? 'Creating account...' : 'Create Account'}
               </button>
@@ -213,7 +179,7 @@ const SignUp = () => {
           </div>
 
           {/* Right Panel - Dynamic Slideshow */}
-          <div className={`flex-1 ${isDark ? 'bg-gradient-to-br from-amber-950/30 via-orange-950/20 to-transparent' : 'bg-gradient-to-br from-amber-100/50 via-orange-50/30 to-transparent'} p-8 lg:p-12 flex flex-col justify-center relative overflow-hidden`}>
+          <div className="flex-1 bg-[#f5f5f4] p-8 lg:p-12 flex flex-col justify-center relative overflow-hidden">
             {/* Slideshow Content */}
             <div className="relative h-80 flex flex-col justify-center">
               {slides.map((slide, idx) => (
@@ -229,24 +195,24 @@ const SignUp = () => {
                   {/* Visual */}
                   <div className="flex justify-center mb-8">
                     {slide.visual === 'upload' && (
-                      <div className={`w-40 h-32 rounded-2xl border-2 border-dashed ${isDark ? 'border-amber-400/50 bg-white/5' : 'border-amber-400 bg-white/60'} flex flex-col items-center justify-center shadow-xl`}>
-                        <svg className={`w-12 h-12 ${isDark ? 'text-amber-400' : 'text-amber-500'} animate-bounce`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <div className="w-40 h-32 rounded-xl border-2 border-dashed border-[#d97757]/40 bg-white flex flex-col items-center justify-center shadow-sm">
+                        <svg className="w-12 h-12 text-[#d97757]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                         </svg>
                         <span className={`text-sm mt-2 ${theme.textMuted}`}>Drop files here</span>
                       </div>
                     )}
                     {slide.visual === 'ask' && (
-                      <div className={`w-48 h-36 rounded-2xl ${isDark ? 'bg-white/10' : 'bg-white/60'} p-4 shadow-xl`}>
+                      <div className="w-48 h-36 rounded-xl bg-white p-4 shadow-sm border border-[#e7e5e4]">
                         <div className="space-y-3">
-                          <div className={`flex items-center gap-2 px-3 py-2 rounded-xl ${isDark ? 'bg-amber-400/20' : 'bg-amber-200'}`}>
-                            <svg className={`w-5 h-5 ${isDark ? 'text-amber-400' : 'text-amber-600'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[#f0d9cf]">
+                            <svg className="w-5 h-5 text-[#d97757]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
                             <span className={`text-sm ${theme.textMuted}`}>What is...?</span>
                           </div>
-                          <div className={`h-4 ${isDark ? 'bg-white/20' : 'bg-amber-100'} rounded-lg animate-pulse`} style={{width: '90%'}} />
-                          <div className={`h-4 ${isDark ? 'bg-white/15' : 'bg-amber-50'} rounded-lg animate-pulse`} style={{width: '70%', animationDelay: '0.3s'}} />
+                          <div className="h-4 bg-[#f0d9cf] rounded-lg" style={{width: '90%'}} />
+                          <div className="h-4 bg-[#f5ebe5] rounded-lg" style={{width: '70%'}} />
                         </div>
                       </div>
                     )}
@@ -255,25 +221,23 @@ const SignUp = () => {
                         {[1, 2, 3].map((i) => (
                           <div
                             key={i}
-                            className={`w-14 h-18 rounded-xl ${isDark ? 'bg-white/10' : 'bg-white/60'} p-2 shadow-xl flex flex-col items-center animate-pulse`}
-                            style={{animationDelay: `${i * 0.3}s`}}
+                            className="w-14 h-18 rounded-xl bg-white p-2 shadow-sm border border-[#e7e5e4] flex flex-col items-center"
                           >
-                            <svg className={`w-8 h-8 ${isDark ? 'text-amber-400' : 'text-amber-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <svg className="w-8 h-8 text-[#d97757]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                             </svg>
-                            <div className={`w-full h-1.5 ${isDark ? 'bg-white/20' : 'bg-amber-200'} rounded-full mt-2`} />
+                            <div className="w-full h-1.5 bg-[#f0d9cf] rounded-full mt-2" />
                           </div>
                         ))}
                       </div>
                     )}
                     {slide.visual === 'free' && (
                       <div className="relative">
-                        <div className={`w-28 h-28 rounded-full bg-gradient-to-br from-amber-300 via-amber-400 to-orange-500 shadow-2xl shadow-amber-500/40 flex items-center justify-center`}>
+                        <div className={`w-28 h-28 rounded-full bg-[#d97757] flex items-center justify-center`}>
                           <svg className="w-14 h-14 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
                           </svg>
                         </div>
-                        <div className="absolute inset-0 rounded-full bg-gradient-to-br from-amber-300 to-orange-500 blur-2xl opacity-40 animate-pulse" />
                       </div>
                     )}
                   </div>
@@ -293,7 +257,7 @@ const SignUp = () => {
                 <button
                   key={idx}
                   onClick={() => setCurrentSlide(idx)}
-                  className={`w-2 h-2 rounded-full transition-all duration-300 ${currentSlide === idx ? (isDark ? 'bg-amber-400 w-6' : 'bg-amber-500 w-6') : (isDark ? 'bg-white/30' : 'bg-amber-300')}`}
+                  className={`w-2 h-2 rounded-full transition-all duration-300 ${currentSlide === idx ? 'bg-[#d97757] w-6' : 'bg-[#e8a088]'}`}
                 />
               ))}
             </div>

@@ -12,9 +12,8 @@ const TooltipTrigger = TooltipPrimitive.Trigger
 const TooltipContent = React.forwardRef(({ className, sideOffset = 6, variant = "default", ...props }, ref) => {
   const variants = {
     default: "bg-popover text-popover-foreground border border-border",
-    dark: "bg-gray-900 text-white border-gray-800",
-    glass: "bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl text-foreground border border-white/20 dark:border-white/10",
-    premium: "bg-gradient-to-br from-amber-500 to-orange-500 text-white border-0",
+    glass: "bg-white/90 backdrop-blur-sm text-foreground border border-border",
+    premium: "bg-primary text-white border-0",
   }
 
   return (
@@ -23,7 +22,7 @@ const TooltipContent = React.forwardRef(({ className, sideOffset = 6, variant = 
         ref={ref}
         sideOffset={sideOffset}
         className={cn(
-          "z-50 max-w-xs overflow-hidden rounded-xl px-3 py-2 text-sm shadow-xl",
+          "z-50 max-w-xs overflow-hidden rounded-xl px-3 py-2 text-sm shadow-md",
           "animate-in fade-in-0 zoom-in-95",
           "data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",
           "data-[side=bottom]:slide-in-from-top-2",

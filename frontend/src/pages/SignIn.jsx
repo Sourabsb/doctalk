@@ -20,14 +20,6 @@ const SignIn = () => {
     }
   }, [searchParams])
   
-  // Read theme ONLY from localStorage (set by Landing page)
-  const getThemeFromStorage = () => {
-    const saved = localStorage.getItem('doctalk-theme')
-    return saved === 'dark'
-  }
-  
-  const [isDark, setIsDark] = useState(() => getThemeFromStorage())
-
   const slides = [
     {
       title: 'Chat with Your Documents',
@@ -60,20 +52,13 @@ const SignIn = () => {
     return () => clearInterval(interval)
   }, [slides.length])
 
-  // Sync theme from localStorage on mount
-  useEffect(() => {
-    setIsDark(getThemeFromStorage())
-  }, [])
-
   const theme = {
-    bg: isDark ? 'bg-[#0a0a0a]' : 'bg-[#fefcf9]',
-    cardBg: isDark ? 'bg-white/5 backdrop-blur-2xl border-white/10' : 'bg-white/70 backdrop-blur-2xl border-white/50',
-    text: isDark ? 'text-white' : 'text-gray-900',
-    textMuted: isDark ? 'text-gray-400' : 'text-gray-600',
-    input: isDark 
-      ? 'bg-white/5 border-white/10 text-white placeholder-gray-500' 
-      : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400',
-    accentText: isDark ? 'text-amber-400' : 'text-amber-600',
+    bg: 'bg-[#faf9f5]',
+    cardBg: 'bg-white border-[#e7e5e4]',
+    text: 'text-[#292524]',
+    textMuted: 'text-[#78716c]',
+    input: 'bg-white border-[#e7e5e4] text-[#292524]',
+    accentText: 'text-[#d97757]',
   }
 
   const handleChange = (e) => {
@@ -108,14 +93,13 @@ const SignIn = () => {
 
   return (
     <div className={`min-h-screen ${theme.bg} flex items-center justify-center p-6 relative overflow-hidden`}>
-      {/* Background ambient glow */}
+      {/* Subtle background */}
       <div className="absolute inset-0 pointer-events-none">
-        <div className={`absolute top-1/4 left-1/4 w-[500px] h-[500px] ${isDark ? 'bg-amber-500/10' : 'bg-amber-300/20'} blur-[150px] rounded-full`} />
-        <div className={`absolute bottom-1/4 right-1/4 w-[400px] h-[400px] ${isDark ? 'bg-orange-600/10' : 'bg-orange-300/15'} blur-[120px] rounded-full`} />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#faf9f5] via-white/30 to-[#faf9f5]" />
       </div>
 
       {/* Centered Glass Container */}
-      <div className={`relative z-10 w-full max-w-5xl ${theme.cardBg} rounded-3xl border shadow-2xl overflow-hidden`}>
+      <div className={`relative z-10 w-full max-w-5xl ${theme.cardBg} rounded-xl border shadow-sm overflow-hidden`}>
         <div className="flex flex-col lg:flex-row min-h-[600px]">
           
           {/* Left Panel - Form */}
@@ -130,26 +114,7 @@ const SignIn = () => {
                 />
                 <span className={`text-xl font-semibold tracking-tight ${theme.text}`}>DocTalk</span>
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  const next = !isDark
-                  setIsDark(next)
-                  localStorage.setItem('doctalk-theme', next ? 'dark' : 'light')
-                }}
-                className={`p-2 rounded-lg ${isDark ? 'text-gray-400 hover:text-white hover:bg-gray-800' : 'text-gray-600 hover:text-gray-800 hover:bg-amber-50'} transition`}
-                title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-              >
-                {isDark ? (
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
-                  </svg>
-                ) : (
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-                  </svg>
-                )}
-              </button>
+
             </div>
 
             <div className="mb-8">
@@ -167,7 +132,7 @@ const SignIn = () => {
                   required
                   value={form.email}
                   onChange={handleChange}
-                  className={`w-full px-4 py-3.5 ${theme.input} border rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400/50 focus:border-amber-400/50 transition text-base`}
+                  className={`w-full px-4 py-3.5 ${theme.input} border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#d97757]/40 focus:border-[#d97757]/40 transition text-base`}
                   placeholder="you@example.com"
                 />
               </div>
@@ -180,19 +145,19 @@ const SignIn = () => {
                   required
                   value={form.password}
                   onChange={handleChange}
-                  className={`w-full px-4 py-3.5 ${theme.input} border rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400/50 focus:border-amber-400/50 transition text-base`}
+                  className={`w-full px-4 py-3.5 ${theme.input} border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#d97757]/40 focus:border-[#d97757]/40 transition text-base`}
                   placeholder="••••••••"
                 />
               </div>
               
               {sessionExpired && (
-                <div className={`text-sm ${isDark ? 'text-amber-400 bg-amber-500/10 border-amber-500/20' : 'text-amber-700 bg-amber-50 border-amber-200'} border rounded-xl p-4`}>
+                <div className="text-sm text-[#d97757] bg-[#d97757]/10 border-[#d97757]/20 border rounded-xl p-4">
                   Your session has expired. Please sign in again.
                 </div>
               )}
               
               {error && (
-                <div className={`text-sm ${isDark ? 'text-red-400 bg-red-500/10 border-red-500/20' : 'text-red-600 bg-red-50 border-red-200'} border rounded-xl p-4`}>
+                <div className="text-sm text-destructive bg-destructive/5 border-destructive/20 border rounded-xl p-4">
                   {error}
                 </div>
               )}
@@ -200,7 +165,7 @@ const SignIn = () => {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full py-3.5 bg-gradient-to-r from-amber-300 to-amber-500 text-gray-900 font-semibold rounded-xl shadow-lg shadow-amber-500/25 hover:shadow-amber-500/40 disabled:opacity-60 transition-all duration-300 text-base"
+                className="w-full py-3.5 bg-[#d97757] hover:bg-[#c4684a] text-white font-semibold rounded-lg disabled:opacity-60 transition-colors duration-200 text-base"
               >
                 {isLoading ? 'Signing in...' : 'Sign In'}
               </button>
@@ -215,7 +180,7 @@ const SignIn = () => {
           </div>
 
           {/* Right Panel - Dynamic Slideshow */}
-          <div className={`flex-1 ${isDark ? 'bg-gradient-to-br from-amber-950/30 via-orange-950/20 to-transparent' : 'bg-gradient-to-br from-amber-100/50 via-orange-50/30 to-transparent'} p-8 lg:p-12 flex flex-col justify-center relative overflow-hidden`}>
+          <div className="flex-1 bg-[#f5f5f4] p-8 lg:p-12 flex flex-col justify-center relative overflow-hidden">
             {/* Slideshow Content */}
             <div className="relative h-80 flex flex-col justify-center">
               {slides.map((slide, idx) => (
@@ -231,19 +196,19 @@ const SignIn = () => {
                   {/* Visual */}
                   <div className="flex justify-center mb-8">
                     {slide.visual === 'chat' && (
-                      <div className={`w-48 h-36 rounded-2xl ${isDark ? 'bg-white/10' : 'bg-white/60'} p-4 shadow-xl`}>
+                      <div className="w-48 h-36 rounded-xl bg-white p-4 shadow-sm border border-[#e7e5e4]">
                         <div className="space-y-3">
                           <div className="flex items-start gap-2">
-                            <div className={`w-8 h-8 rounded-full ${isDark ? 'bg-amber-400/30' : 'bg-amber-300'} flex-shrink-0`} />
-                            <div className={`h-6 ${isDark ? 'bg-white/20' : 'bg-amber-200'} rounded-xl animate-pulse`} style={{width: '70%'}} />
+                            <div className="w-8 h-8 rounded-full bg-[#e8a088] flex-shrink-0" />
+                            <div className="h-6 bg-[#f0d9cf] rounded-lg" style={{width: '70%'}} />
                           </div>
                           <div className="flex items-start gap-2 justify-end">
-                            <div className={`h-6 ${isDark ? 'bg-amber-400/40' : 'bg-amber-400'} rounded-xl animate-pulse`} style={{width: '60%', animationDelay: '0.5s'}} />
-                            <div className={`w-8 h-8 rounded-full ${isDark ? 'bg-white/20' : 'bg-amber-200'} flex-shrink-0`} />
+                            <div className="h-6 bg-[#d97757] rounded-lg" style={{width: '60%'}} />
+                            <div className="w-8 h-8 rounded-full bg-[#f0d9cf] flex-shrink-0" />
                           </div>
                           <div className="flex items-start gap-2">
-                            <div className={`w-8 h-8 rounded-full ${isDark ? 'bg-amber-400/30' : 'bg-amber-300'} flex-shrink-0`} />
-                            <div className={`h-6 ${isDark ? 'bg-white/20' : 'bg-amber-200'} rounded-xl animate-pulse`} style={{width: '50%', animationDelay: '1s'}} />
+                            <div className="w-8 h-8 rounded-full bg-[#e8a088] flex-shrink-0" />
+                            <div className="h-6 bg-[#f0d9cf] rounded-lg" style={{width: '50%'}} />
                           </div>
                         </div>
                       </div>
@@ -253,10 +218,9 @@ const SignIn = () => {
                         {['PDF', 'DOCX', 'TXT'].map((f, i) => (
                           <div
                             key={f}
-                            className={`w-16 h-20 rounded-xl ${isDark ? 'bg-white/10' : 'bg-white/60'} flex flex-col items-center justify-center shadow-xl animate-bounce`}
-                            style={{animationDelay: `${i * 0.2}s`, animationDuration: '2s'}}
+                            className="w-16 h-20 rounded-xl bg-white flex flex-col items-center justify-center shadow-sm border border-[#e7e5e4]"
                           >
-                            <svg className={`w-8 h-8 ${isDark ? 'text-amber-400' : 'text-amber-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <svg className="w-8 h-8 text-[#d97757]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                             </svg>
                             <span className={`text-xs font-medium mt-1 ${theme.textMuted}`}>{f}</span>
@@ -266,18 +230,17 @@ const SignIn = () => {
                     )}
                     {slide.visual === 'ai' && (
                       <div className="relative">
-                        <div className={`w-28 h-28 rounded-full bg-gradient-to-br from-amber-300 via-amber-400 to-orange-500 shadow-2xl shadow-amber-500/40 flex items-center justify-center`}>
+                        <div className={`w-28 h-28 rounded-full bg-[#d97757] flex items-center justify-center`}>
                           <svg className="w-14 h-14 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                           </svg>
                         </div>
-                        <div className="absolute inset-0 rounded-full bg-gradient-to-br from-amber-300 to-orange-500 blur-2xl opacity-40 animate-pulse" />
                       </div>
                     )}
                     {slide.visual === 'secure' && (
                       <div className="relative">
-                        <div className={`w-24 h-28 rounded-2xl ${isDark ? 'bg-white/10' : 'bg-white/60'} flex items-center justify-center shadow-xl`}>
-                          <svg className={`w-12 h-12 ${isDark ? 'text-amber-400' : 'text-amber-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <div className="w-24 h-28 rounded-xl bg-white flex items-center justify-center shadow-sm border border-[#e7e5e4]">
+                          <svg className="w-12 h-12 text-[#d97757]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                           </svg>
                         </div>
@@ -305,7 +268,7 @@ const SignIn = () => {
                 <button
                   key={idx}
                   onClick={() => setCurrentSlide(idx)}
-                  className={`w-2 h-2 rounded-full transition-all duration-300 ${currentSlide === idx ? (isDark ? 'bg-amber-400 w-6' : 'bg-amber-500 w-6') : (isDark ? 'bg-white/30' : 'bg-amber-300')}`}
+                  className={`w-2 h-2 rounded-full transition-all duration-300 ${currentSlide === idx ? 'bg-[#d97757] w-6' : 'bg-[#e8a088]'}`}
                 />
               ))}
             </div>

@@ -11,6 +11,7 @@ import json
 import threading
 import uuid
 from typing import List, Dict, Sequence, Optional
+from pathlib import Path
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from sentence_transformers import SentenceTransformer
 from qdrant_client import QdrantClient
@@ -23,29 +24,59 @@ from ..config import (
     EMBEDDING_MODEL, EMBEDDING_DIMENSION
 )
 
-# Global embedding model instance (loaded once)
-_embedding_model: Optional[SentenceTransformer] = None
+# Global embedding model instances (loaded once per model type)
+_embedding_models: Dict[str, object] = {}
 _qdrant_client: Optional[QdrantClient] = None
 _qdrant_initialized: bool = False
 _qdrant_init_lock = threading.Lock()
 _embedding_init_lock = threading.Lock()
 _qdrant_client_lock = threading.Lock()
 
-def get_embedding_model() -> SentenceTransformer:
-    """Get or initialize the sentence transformer model (singleton pattern, thread-safe)."""
-    global _embedding_model
-    if _embedding_model is not None:
-        return _embedding_model
+# Model name constants
+ALLMINILM_MODEL_NAME = "all-MiniLM-L6-v2"
+
+def get_embedding_model(model_name: str = None):
+    """Get or initialize an embedding model by name (singleton per model, thread-safe).
+    
+    Args:
+        model_name: 'custom' for DocTalk model, 'allminilm' for all-MiniLM-L6-v2.
+                    If None, uses the global EMBEDDING_MODEL config.
+    """
+    global _embedding_models
+    
+    if model_name is None:
+        model_name = EMBEDDING_MODEL
+    
+    # Normalize
+    model_name = model_name.lower().strip()
+    
+    if model_name in _embedding_models:
+        return _embedding_models[model_name]
     
     with _embedding_init_lock:
-        if _embedding_model is not None:
-            return _embedding_model
-        print(f"[Embeddings] Loading model: {EMBEDDING_MODEL}")
-        trusted_prefixes = ["jinaai/jina-embeddings", "nomic-ai/nomic-embed"]
-        trust_code = any(EMBEDDING_MODEL.startswith(prefix) for prefix in trusted_prefixes)
-        _embedding_model = SentenceTransformer(EMBEDDING_MODEL, trust_remote_code=trust_code)
-        print(f"[Embeddings] Model loaded successfully")
-    return _embedding_model
+        if model_name in _embedding_models:
+            return _embedding_models[model_name]
+        
+        if model_name == "custom":
+            print(f"[Embeddings] Loading custom DocTalk embedding model")
+            from .custom_model import DocTalkEmbeddingModel
+            model_path = Path(__file__).parent.parent.parent / "models"
+            model = DocTalkEmbeddingModel(str(model_path))
+            print(f"[Embeddings] Custom model loaded successfully")
+        elif model_name == "allminilm":
+            print(f"[Embeddings] Loading model: {ALLMINILM_MODEL_NAME}")
+            model = SentenceTransformer(ALLMINILM_MODEL_NAME)
+            print(f"[Embeddings] {ALLMINILM_MODEL_NAME} loaded successfully")
+        else:
+            print(f"[Embeddings] Loading model: {model_name}")
+            trusted_prefixes = ["jinaai/jina-embeddings", "nomic-ai/nomic-embed"]
+            trust_code = any(model_name.startswith(prefix) for prefix in trusted_prefixes)
+            model = SentenceTransformer(model_name, trust_remote_code=trust_code)
+            print(f"[Embeddings] Model loaded successfully")
+        
+        _embedding_models[model_name] = model
+    
+    return _embedding_models[model_name]
 
 
 def get_qdrant_client() -> QdrantClient:
@@ -123,10 +154,11 @@ class QdrantVectorStore:
     Uses conversation_id for multi-tenant filtering.
     """
     
-    def __init__(self, conversation_id: int):
+    def __init__(self, conversation_id: int, embedding_model_name: str = None):
         self.conversation_id = conversation_id
+        self.embedding_model_name = embedding_model_name
         self.client = get_qdrant_client()
-        self.model = get_embedding_model()
+        self.model = get_embedding_model(embedding_model_name)
         self.collection_name = QDRANT_COLLECTION_NAME
         self.text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=CHUNK_SIZE,
@@ -137,7 +169,11 @@ class QdrantVectorStore:
     
     def embed_text(self, text: str) -> List[float]:
         """Generate embedding for a single text."""
-        return self.model.encode(text).tolist()
+        embedding = self.model.encode([text] if isinstance(text, str) else text)
+        # Ensure we return a flat 1D list
+        if hasattr(embedding, 'shape') and len(embedding.shape) > 1:
+            embedding = embedding[0]
+        return embedding.tolist()
     
     def embed_texts(self, texts: List[str]) -> List[List[float]]:
         """Generate embeddings for multiple texts (batched)."""
@@ -251,17 +287,14 @@ class QdrantVectorStore:
             
             search_filter = Filter(must=must_conditions)
             
-            # Use query_points instead of search (newer qdrant-client API)
-            results = self.client.query_points(
+            # Use query_points which works with both local and remote Qdrant
+            points = self.client.query_points(
                 collection_name=self.collection_name,
-                query=query_embedding,
+                query=query_embedding,  # must be a flat 1D list
                 query_filter=search_filter,
                 limit=k,
                 with_payload=True
-            )
-            
-            # Extract points from QueryResponse
-            points = results.points if hasattr(results, 'points') else results
+            ).points
             
             # Build results with adjusted scores
             # Significantly boost longer chunks to prefer detailed content over short index entries
@@ -418,8 +451,9 @@ class HybridRAGProcessor:
     3. Recent conversation context
     """
     
-    def __init__(self, conversation_id: Optional[int] = None):
+    def __init__(self, conversation_id: Optional[int] = None, embedding_model_name: str = None):
         self.conversation_id = conversation_id
+        self.embedding_model_name = embedding_model_name
         self.vector_store: Optional[QdrantVectorStore] = None
         self.active_document_ids: Optional[List[int]] = None
         self._fallback_chunks: Sequence[Dict] = []
@@ -445,7 +479,7 @@ class HybridRAGProcessor:
         
         if self.conversation_id:
             try:
-                self.vector_store = QdrantVectorStore(self.conversation_id)
+                self.vector_store = QdrantVectorStore(self.conversation_id, self.embedding_model_name)
                 self.active_document_ids = document_ids
             except Exception as e:
                 print(f"[RAG] Error initializing Qdrant: {e}")
@@ -494,7 +528,7 @@ class HybridRAGProcessor:
         
         # Pre-compute and cache chat embeddings
         if texts:
-            model = get_embedding_model()
+            model = get_embedding_model(self.embedding_model_name)
             self._chat_embeddings = model.encode(texts)
         else:
             self._chat_embeddings = None
@@ -506,11 +540,11 @@ class HybridRAGProcessor:
         if not self._chat_texts or self._chat_embeddings is None:
             return []
         
-        model = get_embedding_model()
-        query_emb = model.encode(query)
+        model = get_embedding_model(self.embedding_model_name)
+        import numpy as np
+        query_emb = np.array(model.encode([query] if isinstance(query, str) else query)).flatten()
         
         # Compute cosine similarities with epsilon to guard against zero-norm division
-        import numpy as np
         epsilon = 1e-8
         text_norms = np.linalg.norm(self._chat_embeddings, axis=1)
         query_norm = np.linalg.norm(query_emb)

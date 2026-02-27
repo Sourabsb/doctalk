@@ -81,3 +81,6 @@ STARTUP.md
 
 # Progress report
 PROGRESS_REPORT.md
+
+# Jupyter notebooks
+*.ipynb

@@ -1,7 +1,7 @@
 import json
 import logging
 from datetime import datetime
-from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Form
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Form, status
 from sqlalchemy.orm import Session
 from typing import List
 
@@ -21,6 +21,7 @@ async def upload_files(
     files: List[UploadFile] = File(...),
     title: str = Form(None),
     llm_mode: str = Form(None),
+    embedding_model: str = Form(None),
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
@@ -28,6 +29,11 @@ async def upload_files(
         chosen_mode = (llm_mode or DEFAULT_LLM_MODE or "api").lower()
         if chosen_mode not in ("api", "local"):
             raise HTTPException(status_code=400, detail="Invalid llm_mode. Use 'api' or 'local'.")
+        
+        chosen_embedding = (embedding_model or "custom").lower()
+        if chosen_embedding not in ("custom", "allminilm"):
+            raise HTTPException(status_code=400, detail="Invalid embedding_model. Use 'custom' or 'allminilm'.")
+        
         processor = DocumentProcessor()
         
         all_text_data = {}
@@ -71,6 +77,7 @@ async def upload_files(
                 user_id=current_user.id,
                 title=conversation_title,
                 llm_mode=chosen_mode,
+                embedding_model=chosen_embedding,
                 created_at=datetime.utcnow(),
                 updated_at=datetime.utcnow()
             )
@@ -116,7 +123,7 @@ async def upload_files(
                         available_doc_ids
                     )
 
-            vector_store = QdrantVectorStore(conversation.id)
+            vector_store = QdrantVectorStore(conversation.id, chosen_embedding)
             try:
                 chunk_count, qdrant_texts, qdrant_metadatas = vector_store.add_documents(all_text_data, source_to_doc_id)
                 logger.info("Added %d chunks to Qdrant for conversation %d", chunk_count, conversation.id)
@@ -161,7 +168,8 @@ async def upload_files(
                 message="Files processed successfully",
                 conversation_id=conversation.id,
                 processed_files=processed_files,
-                llm_mode=chosen_mode
+                llm_mode=chosen_mode,
+                embedding_model=chosen_embedding
             )
         except Exception as vector_error:
             db.rollback()

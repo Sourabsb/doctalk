@@ -70,12 +70,16 @@ def run_migrations():
 		convo_statements = []
 		if "llm_mode" not in existing_convo_columns:
 			convo_statements.append("ALTER TABLE conversations ADD COLUMN llm_mode VARCHAR DEFAULT 'api'")
+		if "embedding_model" not in existing_convo_columns:
+			convo_statements.append("ALTER TABLE conversations ADD COLUMN embedding_model VARCHAR DEFAULT 'custom'")
 
 		with engine.begin() as conn:
 			for stmt in convo_statements:
 				conn.execute(text(stmt))
 			if "llm_mode" not in existing_convo_columns:
 				conn.execute(text("UPDATE conversations SET llm_mode = 'api' WHERE llm_mode IS NULL"))
+			if "embedding_model" not in existing_convo_columns:
+				conn.execute(text("UPDATE conversations SET embedding_model = 'custom' WHERE embedding_model IS NULL"))
 
 	# Backfill: fix broken chaining where follow-up user messages were saved without reply_to_message_id.
 	# This is conservative: it only touches non-edited, version_index=1 user messages.

@@ -5,8 +5,8 @@ import { cn } from "@/lib/utils"
 const Card = React.forwardRef(({ className, variant = "default", ...props }, ref) => {
   const variants = {
     default: "bg-card text-card-foreground shadow-sm border border-border",
-    glass: "bg-white/70 dark:bg-white/5 backdrop-blur-xl border border-white/50 dark:border-white/10 shadow-xl",
-    elevated: "bg-card text-card-foreground shadow-xl hover:shadow-2xl transition-shadow border border-border/50",
+    glass: "bg-white/90 border border-border shadow-sm",
+    elevated: "bg-card text-card-foreground shadow-md hover:shadow-lg transition-shadow border border-border/50",
     interactive: "bg-card text-card-foreground border border-border hover:border-primary/30 hover:shadow-lg hover:-translate-y-1 transition-all cursor-pointer",
     outline: "bg-transparent border-2 border-dashed border-border hover:border-primary/50 transition-colors",
   }

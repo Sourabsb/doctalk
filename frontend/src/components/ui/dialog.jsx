@@ -29,8 +29,8 @@ DialogOverlay.displayName = DialogPrimitive.Overlay.displayName
 const DialogContent = React.forwardRef(({ className, children, variant = "default", ...props }, ref) => {
   const variants = {
     default: "bg-background border border-border",
-    glass: "bg-background/95 backdrop-blur-2xl border border-border/50 shadow-2xl",
-    premium: "bg-gradient-to-br from-background via-background to-muted border border-primary/20",
+    glass: "bg-background/95 backdrop-blur-sm border border-border shadow-md",
+    premium: "bg-background border border-primary/20",
   }
 
   return (
@@ -40,7 +40,7 @@ const DialogContent = React.forwardRef(({ className, children, variant = "defaul
         ref={ref}
         className={cn(
           "fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%]",
-          "rounded-2xl p-6 shadow-2xl",
+          "rounded-xl p-6 shadow-md",
           "data-[state=open]:animate-in data-[state=closed]:animate-out",
           "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
           "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",

@@ -10,7 +10,7 @@ const TabsList = React.forwardRef(({ className, variant = "default", ...props },
     default: "bg-muted text-muted-foreground",
     pills: "bg-transparent gap-2",
     underline: "bg-transparent border-b border-border rounded-none p-0",
-    glass: "bg-white/50 dark:bg-white/5 backdrop-blur-xl border border-white/20 dark:border-white/10",
+    glass: "bg-white/90 border border-border",
   }
 
   return (
@@ -43,7 +43,7 @@ const TabsTrigger = React.forwardRef(({ className, variant = "default", ...props
       "data-[state=active]:border-primary data-[state=active]:text-foreground"
     ),
     glass: cn(
-      "data-[state=active]:bg-white/80 dark:data-[state=active]:bg-white/10",
+      "data-[state=active]:bg-white/80",
       "data-[state=active]:text-foreground data-[state=active]:shadow-sm"
     ),
   }

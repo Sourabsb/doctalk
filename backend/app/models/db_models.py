@@ -21,6 +21,7 @@ class Conversation(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     title = Column(String, nullable=False)
     llm_mode = Column(String, default="api")  # 'api' (Gemini) or 'local' (Ollama)
+    embedding_model = Column(String, default="custom")  # 'custom' (DocTalk) or 'allminilm' (all-MiniLM-L6-v2)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow)
 

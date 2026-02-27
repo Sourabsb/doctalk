@@ -12,7 +12,7 @@ import { Separator } from '@/components/ui/separator'
 // Lucide icons
 import { User, Shield, Trash2, Check, AlertCircle, Loader2 } from 'lucide-react'
 
-const ProfileSettingsModal = ({ isOpen, onClose, user, onProfileUpdated, onAccountDeleted, isDark }) => {
+const ProfileSettingsModal = ({ isOpen, onClose, user, onProfileUpdated, onAccountDeleted }) => {
   const [displayName, setDisplayName] = useState(user?.name || '')
   const [profileMessage, setProfileMessage] = useState('')
   const [profileError, setProfileError] = useState('')
@@ -181,7 +181,7 @@ const ProfileSettingsModal = ({ isOpen, onClose, user, onProfileUpdated, onAccou
               )}
 
               {passwordMessage && (
-                <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
+                <div className="flex items-center gap-2 text-sm text-green-600">
                   <Check className="w-4 h-4" />
                   {passwordMessage}
                 </div>
@@ -326,7 +326,7 @@ const ProfileSettingsModal = ({ isOpen, onClose, user, onProfileUpdated, onAccou
               )}
 
               {profileMessage && (
-                <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
+                <div className="flex items-center gap-2 text-sm text-green-600">
                   <Check className="w-4 h-4" />
                   {profileMessage}
                 </div>

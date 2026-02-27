@@ -66,13 +66,16 @@ export const signin = async ({ email, password }) => {
   return response.data
 }
 
-export const uploadFiles = async (files, title, llmMode = 'local') => {
+export const uploadFiles = async (files, title, llmMode = 'local', embeddingModel = 'custom') => {
   const formData = new FormData()
   if (title) {
     formData.append('title', title)
   }
   if (llmMode) {
     formData.append('llm_mode', llmMode)
+  }
+  if (embeddingModel) {
+    formData.append('embedding_model', embeddingModel)
   }
   files.forEach(file => {
     formData.append('files', file)
@@ -186,10 +189,16 @@ export const downloadChat = async (conversationId, format = 'txt') => {
     responseType: 'blob',
   })
 
+  // Try to extract filename from Content-Disposition header
+  const disposition = response.headers['content-disposition'] || ''
+  let filename = `chat_history.${format}`
+  const match = disposition.match(/filename="?([^";\n]+)"?/)
+  if (match) filename = decodeURIComponent(match[1])
+
   const url = window.URL.createObjectURL(new Blob([response.data]))
   const link = document.createElement('a')
   link.href = url
-  link.setAttribute('download', `chat_history.${format}`)
+  link.setAttribute('download', filename)
   document.body.appendChild(link)
   link.click()
   link.remove()

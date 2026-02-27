@@ -17,11 +17,11 @@ const badgeVariants = cva(
         outline:
           "text-foreground border-border",
         success:
-          "border-transparent bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400",
+          "border-transparent bg-emerald-100 text-emerald-700",
         warning:
-          "border-transparent bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400",
+          "border-transparent bg-[#f5f5f4] text-[#c4684a]",
         info:
-          "border-transparent bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400",
+          "border-transparent bg-blue-100 text-blue-700",
         cloud:
           "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
         local:
@@ -29,7 +29,7 @@ const badgeVariants = cva(
         premium:
           "border-transparent bg-primary text-primary-foreground shadow-sm",
         glass:
-          "border-white/20 bg-white/10 backdrop-blur-sm text-foreground dark:border-white/10 dark:bg-white/5",
+          "border-white/20 bg-white/10 backdrop-blur-sm text-foreground",
         dot:
           "border-transparent bg-transparent text-muted-foreground pl-0",
       },
@@ -54,7 +54,7 @@ function Badge({ className, variant, size, children, dot, ...props }) {
           className={cn(
             "h-1.5 w-1.5 rounded-full mr-1",
             variant === "success" && "bg-emerald-500",
-            variant === "warning" && "bg-amber-500",
+            variant === "warning" && "bg-[#d97757]",
             variant === "info" && "bg-blue-500",
             variant === "destructive" && "bg-red-500",
             !variant && "bg-primary"

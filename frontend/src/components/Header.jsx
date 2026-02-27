@@ -4,7 +4,7 @@ const Header = ({ onNewSession, onDownload, activeConversationId, user, onLogout
   const [showExportMenu, setShowExportMenu] = useState(false)
 
   return (
-    <header className="bg-gray-900 border-b border-gray-800">
+    <header className="bg-[#faf9f5] border-b border-[#e7e5e4]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center gap-2.5">
@@ -13,17 +13,17 @@ const Header = ({ onNewSession, onDownload, activeConversationId, user, onLogout
               alt="DocTalk Logo" 
               className="w-8 h-8 object-contain"
             />
-            <h1 className="text-xl font-bold text-white">DocTalk</h1>
+            <h1 className="text-xl font-bold text-[#292524]">DocTalk</h1>
           </div>
           <div className="flex items-center space-x-3">
             {user && (
-              <p className="text-xs text-gray-400">Signed in as {user.name || user.email}</p>
+              <p className="text-xs text-[#78716c]">Signed in as {user.name || user.email}</p>
             )}
             {activeConversationId && onDownload && (
               <div className="relative">
                 <button
                   onClick={() => setShowExportMenu(!showExportMenu)}
-                  className="px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-gray-800 rounded-lg transition-colors flex items-center space-x-1"
+                  className="px-4 py-2 text-sm text-[#78716c] hover:text-[#292524] hover:bg-[#f5f5f4] rounded-lg transition-colors flex items-center space-x-1"
                 >
                   <span>Export</span>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -31,16 +31,16 @@ const Header = ({ onNewSession, onDownload, activeConversationId, user, onLogout
                   </svg>
                 </button>
                 {showExportMenu && (
-                  <div className="absolute right-0 mt-2 w-32 bg-gray-800 border border-gray-700 rounded-lg shadow-lg z-10">
+                  <div className="absolute right-0 mt-2 w-32 bg-white border border-[#e7e5e4] rounded-lg shadow-md z-10">
                     <button
                       onClick={() => { onDownload('txt'); setShowExportMenu(false); }}
-                      className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:text-white hover:bg-gray-700 rounded-t-lg transition"
+                      className="w-full px-4 py-2 text-left text-sm text-[#78716c] hover:text-[#292524] hover:bg-[#f5f5f4] rounded-t-lg transition"
                     >
                       TXT
                     </button>
                     <button
                       onClick={() => { onDownload('pdf'); setShowExportMenu(false); }}
-                      className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:text-white hover:bg-gray-700 rounded-b-lg transition"
+                      className="w-full px-4 py-2 text-left text-sm text-[#78716c] hover:text-[#292524] hover:bg-[#f5f5f4] rounded-b-lg transition"
                     >
                       PDF
                     </button>
